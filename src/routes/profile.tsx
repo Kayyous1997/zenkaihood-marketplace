@@ -21,6 +21,7 @@ const tabs = [["Owned"], ["Created"], ["Listed"], ["Activity"], ["Favorites"]] a
 
 function ProfilePage() {
   const [tab, setTab] = useState("Owned");
+  const { wallet, chainName } = useWallet();
   return (
     <AccountShell>
       <div className="page-section">
