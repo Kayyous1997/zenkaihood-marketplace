@@ -12,8 +12,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       <RainbowKitProvider
         appInfo={{ appName: "Zenkaihood" }}
         theme={darkTheme({
-          accentColor: "hsl(var(--primary))",
-          accentColorForeground: "hsl(var(--primary-foreground))",
+          accentColor: "var(--primary)",
+          accentColorForeground: "var(--primary-foreground)",
           borderRadius: "small",
           overlayBlur: "small",
         })}
