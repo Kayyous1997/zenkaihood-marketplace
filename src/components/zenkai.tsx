@@ -1,3 +1,4 @@
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -35,7 +36,7 @@ import moon from "@/assets/moon.jpg";
 import ronin from "@/assets/ronin.jpg";
 import sakura from "@/assets/sakura.jpg";
 import { Button } from "@/components/ui/button";
-import { connectWallet, disconnectWallet, useWallet } from "@/lib/wallet";
+import { useDisconnectWallet, useWallet } from "@/lib/wallet";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
