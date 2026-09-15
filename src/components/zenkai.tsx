@@ -217,7 +217,7 @@ export function Verified() { return <BadgeCheck className="inline size-3.5 fill-
 
 export function CollectionCard({ item, index = 0 }: { item: (typeof collections)[number]; index?: number }) {
   return (
-    <Link to="/collections/the-ronin" className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
+    <Link to="/collections/$slug" params={{ slug: item.slug }} className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
       <img src={item.art} alt={`${item.name} collection`} width={1024} height={1024} loading="lazy" className="size-20 shrink-0 rounded object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-display font-semibold">{item.name} <Verified /></h3>
