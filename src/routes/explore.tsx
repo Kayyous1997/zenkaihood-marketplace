@@ -76,10 +76,10 @@ function ExploreBrowsePage() {
 function CollectionGrid({ title, items, offset = 0 }: { title: string; items: typeof grid; offset?: number }) {
   return (
     <section className="mt-6">
-      <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-xl font-semibold">{title}</h2><Link to="/collections/the-ronin" className="text-[11px] text-primary">View All</Link></div>
+      <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-xl font-semibold">{title}</h2><Link to="/collections/$slug" params={{ slug: "the-ronin" }} className="text-[11px] text-primary">View All</Link></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item, index) => (
-          <Link key={`${item.name}-${index}`} to="/collections/the-ronin" className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90" style={{ animationDelay: `${(offset + index) * 0.05}s` }}>
+          <Link key={`${item.name}-${index}`} to="/collections/$slug" params={{ slug: item.slug }} className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90" style={{ animationDelay: `${(offset + index) * 0.05}s` }}>
             <img src={item.art} alt={`${item.name} collection`} width={1024} height={1024} loading="lazy" className="aspect-[2] w-full object-cover transition-transform duration-500 hover:scale-[1.03]" />
             <div className="flex items-center gap-3 p-3">
               <img src={item.art} alt="" className="size-9 rounded-full border-2 border-surface object-cover" />
