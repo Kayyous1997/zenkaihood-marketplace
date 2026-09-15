@@ -3,6 +3,7 @@ import { CalendarDays, Copy, Globe2, Grid2X2, List, MessageCircle, Pencil, Twitt
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useWallet } from "@/lib/wallet";
 import { AccountShell, InfoCard, InkHero, OwnedCard, SelectBox, Tabs, Verified, owned, profile } from "@/components/zenkai";
 
 export const Route = createFileRoute("/profile")({
@@ -20,6 +21,7 @@ const tabs = [["Owned"], ["Created"], ["Listed"], ["Activity"], ["Favorites"]] a
 
 function ProfilePage() {
   const [tab, setTab] = useState("Owned");
+  const { wallet, chainName } = useWallet();
   return (
     <AccountShell>
       <div className="page-section">
@@ -29,7 +31,7 @@ function ProfilePage() {
               <img src={profile.avatar} alt="Akeno avatar" width={1024} height={1024} className="size-28 rounded-md border-4 border-surface object-cover shadow-art" />
               <div className="min-w-0 flex-1">
                 <h1 className="font-display text-4xl font-semibold">{profile.name} <Verified /></h1>
-                <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{profile.address}<Copy className="size-3.5" /><span className="rounded-sm bg-muted px-2 py-0.5 text-[10px]">ENS not set</span></p>
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{wallet ?? profile.address}<Copy className="size-3.5" /><span className="rounded-sm bg-muted px-2 py-0.5 text-[10px]">{chainName ?? "ENS not set"}</span></p>
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{profile.bio}</p>
                 <div className="mt-3 flex gap-4 text-muted-foreground"><Twitter className="size-4" /><MessageCircle className="size-4" /><Globe2 className="size-4" /></div>
               </div>
@@ -54,7 +56,7 @@ function ProfilePage() {
           <aside className="space-y-3">
             <div className="rounded-md border border-border bg-surface/90 p-4">
               <h2 className="font-display text-base font-semibold">Wallet Address</h2>
-              <p className="mt-3 flex items-center gap-2 text-xs">{profile.address}<Copy className="size-3.5 text-muted-foreground" /></p>
+              <p className="mt-3 flex items-center gap-2 text-xs">{wallet ?? profile.address}<Copy className="size-3.5 text-muted-foreground" /></p>
               <p className="mt-2 text-[11px] text-muted-foreground"><span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5">ENS</span>Not set</p>
             </div>
             <InfoCard title="Social Links" rows={[["X", "@Akeno"], ["Discord", "Not set"], ["Website", "Not set"]]} />
