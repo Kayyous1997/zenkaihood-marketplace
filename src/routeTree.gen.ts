@@ -18,7 +18,6 @@ import { Route as MyActivityRouteImport } from './routes/my-activity'
 import { Route as MyNftsRouteImport } from './routes/my-nfts'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as CollectionsSlugRouteImport } from './routes/collections.$slug'
-import { Route as CollectionsTheRoninRouteImport } from './routes/collections.the-ronin'
 import { Route as NftsIdRouteImport } from './routes/nfts.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -66,11 +65,6 @@ const CollectionsSlugRoute = CollectionsSlugRouteImport.update({
   path: '/collections/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CollectionsTheRoninRoute = CollectionsTheRoninRouteImport.update({
-  id: '/collections/the-ronin',
-  path: '/collections/the-ronin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const NftsIdRoute = NftsIdRouteImport.update({
   id: '/nfts/$id',
   path: '/nfts/$id',
@@ -87,7 +81,6 @@ export interface FileRoutesByFullPath {
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRoutesByTo {
@@ -100,7 +93,6 @@ export interface FileRoutesByTo {
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRoutesById {
@@ -114,7 +106,6 @@ export interface FileRoutesById {
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRouteTypes {
@@ -129,7 +120,6 @@ export interface FileRouteTypes {
     | '/my-nfts'
     | '/profile'
     | '/collections/$slug'
-    | '/collections/the-ronin'
     | '/nfts/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -142,7 +132,6 @@ export interface FileRouteTypes {
     | '/my-nfts'
     | '/profile'
     | '/collections/$slug'
-    | '/collections/the-ronin'
     | '/nfts/$id'
   id:
     | '__root__'
@@ -155,7 +144,6 @@ export interface FileRouteTypes {
     | '/my-nfts'
     | '/profile'
     | '/collections/$slug'
-    | '/collections/the-ronin'
     | '/nfts/$id'
   fileRoutesById: FileRoutesById
 }
@@ -169,7 +157,6 @@ export interface RootRouteChildren {
   MyNftsRoute: typeof MyNftsRoute
   ProfileRoute: typeof ProfileRoute
   CollectionsSlugRoute: typeof CollectionsSlugRoute
-  CollectionsTheRoninRoute: typeof CollectionsTheRoninRoute
   NftsIdRoute: typeof NftsIdRoute
 }
 
@@ -238,13 +225,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollectionsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/collections/the-ronin': {
-      id: '/collections/the-ronin'
-      path: '/collections/the-ronin'
-      fullPath: '/collections/the-ronin'
-      preLoaderRoute: typeof CollectionsTheRoninRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/nfts/$id': {
       id: '/nfts/$id'
       path: '/nfts/$id'
@@ -265,7 +245,6 @@ const rootRouteChildren: RootRouteChildren = {
   MyNftsRoute: MyNftsRoute,
   ProfileRoute: ProfileRoute,
   CollectionsSlugRoute: CollectionsSlugRoute,
-  CollectionsTheRoninRoute: CollectionsTheRoninRoute,
   NftsIdRoute: NftsIdRoute,
 }
 export const routeTree = rootRouteImport
