@@ -17,7 +17,7 @@ import { Route as ListingsRouteImport } from './routes/listings'
 import { Route as MyActivityRouteImport } from './routes/my-activity'
 import { Route as MyNftsRouteImport } from './routes/my-nfts'
 import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as CollectionsTheRoninRouteImport } from './routes/collections.the-ronin'
+import { Route as CollectionsSlugRouteImport } from './routes/collections.$slug'
 import { Route as NftsIdRouteImport } from './routes/nfts.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -60,9 +60,9 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CollectionsTheRoninRoute = CollectionsTheRoninRouteImport.update({
-  id: '/collections/the-ronin',
-  path: '/collections/the-ronin',
+const CollectionsSlugRoute = CollectionsSlugRouteImport.update({
+  id: '/collections/$slug',
+  path: '/collections/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NftsIdRoute = NftsIdRouteImport.update({
@@ -80,7 +80,7 @@ export interface FileRoutesByFullPath {
   '/my-activity': typeof MyActivityRoute
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
+  '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRoutesByTo {
@@ -92,7 +92,7 @@ export interface FileRoutesByTo {
   '/my-activity': typeof MyActivityRoute
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
+  '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRoutesById {
@@ -105,7 +105,7 @@ export interface FileRoutesById {
   '/my-activity': typeof MyActivityRoute
   '/my-nfts': typeof MyNftsRoute
   '/profile': typeof ProfileRoute
-  '/collections/the-ronin': typeof CollectionsTheRoninRoute
+  '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
 }
 export interface FileRouteTypes {
@@ -119,7 +119,7 @@ export interface FileRouteTypes {
     | '/my-activity'
     | '/my-nfts'
     | '/profile'
-    | '/collections/the-ronin'
+    | '/collections/$slug'
     | '/nfts/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -131,7 +131,7 @@ export interface FileRouteTypes {
     | '/my-activity'
     | '/my-nfts'
     | '/profile'
-    | '/collections/the-ronin'
+    | '/collections/$slug'
     | '/nfts/$id'
   id:
     | '__root__'
@@ -143,7 +143,7 @@ export interface FileRouteTypes {
     | '/my-activity'
     | '/my-nfts'
     | '/profile'
-    | '/collections/the-ronin'
+    | '/collections/$slug'
     | '/nfts/$id'
   fileRoutesById: FileRoutesById
 }
@@ -156,7 +156,7 @@ export interface RootRouteChildren {
   MyActivityRoute: typeof MyActivityRoute
   MyNftsRoute: typeof MyNftsRoute
   ProfileRoute: typeof ProfileRoute
-  CollectionsTheRoninRoute: typeof CollectionsTheRoninRoute
+  CollectionsSlugRoute: typeof CollectionsSlugRoute
   NftsIdRoute: typeof NftsIdRoute
 }
 
@@ -218,11 +218,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/collections/the-ronin': {
-      id: '/collections/the-ronin'
-      path: '/collections/the-ronin'
-      fullPath: '/collections/the-ronin'
-      preLoaderRoute: typeof CollectionsTheRoninRouteImport
+    '/collections/$slug': {
+      id: '/collections/$slug'
+      path: '/collections/$slug'
+      fullPath: '/collections/$slug'
+      preLoaderRoute: typeof CollectionsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nfts/$id': {
@@ -244,7 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyActivityRoute: MyActivityRoute,
   MyNftsRoute: MyNftsRoute,
   ProfileRoute: ProfileRoute,
-  CollectionsTheRoninRoute: CollectionsTheRoninRoute,
+  CollectionsSlugRoute: CollectionsSlugRoute,
   NftsIdRoute: NftsIdRoute,
 }
 export const routeTree = rootRouteImport

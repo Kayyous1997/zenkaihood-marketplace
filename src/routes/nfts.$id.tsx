@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { SellDialog, Shell, Verified, nfts, owned } from "@/components/zenkai";
+import { SellDialog, Shell, Verified, collectionSlugByName, nfts, owned } from "@/components/zenkai";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/nfts/$id")({
@@ -45,7 +45,7 @@ function NftDetailPage() {
     <Shell>
       <main className="page-section animate-fade-in-up">
         <Button asChild variant="ghost" className="mb-4 -ml-2 gap-2 text-xs text-muted-foreground hover:text-foreground">
-          <Link to="/collections/the-ronin"><ArrowLeft className="size-4" /> Back to collection</Link>
+          <Link to="/collections/$slug" params={{ slug: collectionSlugByName(item.collection) }}><ArrowLeft className="size-4" /> Back to collection</Link>
         </Button>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_420px]">

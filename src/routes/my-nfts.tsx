@@ -55,7 +55,7 @@ function MyNftsPage() {
           <div className="rounded-md border border-border bg-surface/90 p-4">
             <h2 className="font-display text-base font-semibold">Actions</h2>
             <SellDialog label="List an NFT for Sale" variant="default" className="mt-3 w-full justify-start text-xs" />
-            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/collections/the-ronin">View on Marketplace <ExternalLink className="ml-auto size-3.5" /></Link></Button>
+            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/collections/$slug" params={{ slug: "the-ronin" }}>View on Marketplace <ExternalLink className="ml-auto size-3.5" /></Link></Button>
             <Button asChild variant="ghost" className="w-full justify-start text-xs"><Link to="/create"><PlusCircle />Register Collection</Link></Button>
             <Button variant="ghost" className="w-full justify-start text-xs"><Send />Transfer NFT</Button>
           </div>

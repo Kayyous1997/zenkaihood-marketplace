@@ -58,12 +58,49 @@ import { cn } from "@/lib/utils";
 export const art = { ronin, sakura, cyber, lotus, moon };
 
 export const collections = [
-  { name: "The Ronin", creator: "Zenkaihood", art: ronin, floor: "1.25 ETH", volume: "24.8 ETH", items: "1.2k" },
-  { name: "Sakura Origins", creator: "Sakura Studio", art: sakura, floor: "0.42 ETH", volume: "12.6 ETH", items: "850" },
-  { name: "Cyber Edo", creator: "Digital Forge", art: cyber, floor: "0.78 ETH", volume: "18.3 ETH", items: "1.5k" },
-  { name: "The Lotus", creator: "Lotus Collective", art: lotus, floor: "0.35 ETH", volume: "9.7 ETH", items: "640" },
-  { name: "Void Samurai", creator: "Zero Studio", art: moon, floor: "1.08 ETH", volume: "32.1 ETH", items: "920" },
+  { slug: "the-ronin", name: "The Ronin", creator: "Zenkaihood", art: ronin, floor: "1.25 ETH", volume: "24.8 ETH", items: "1.2k", supply: "777", owners: "642", chain: "Ethereum", description: "A collection of 777 lone warriors, each carrying a story of honor, loss, and the endless pursuit of a greater tomorrow." },
+  { slug: "sakura-origins", name: "Sakura Origins", creator: "Sakura Studio", art: sakura, floor: "0.42 ETH", volume: "12.6 ETH", items: "850", supply: "850", owners: "510", chain: "Ethereum", description: "850 hand-drawn blooms tracing the fleeting beauty of spring across an ephemeral petal-strewn skyline." },
+  { slug: "cyber-edo", name: "Cyber Edo", creator: "Digital Forge", art: cyber, floor: "0.78 ETH", volume: "18.3 ETH", items: "1.5k", supply: "1.5k", owners: "980", chain: "Base", description: "A neon-lit reimagining of the Edo period: 1,500 holographic scrolls where circuitry meets calligraphy." },
+  { slug: "the-lotus", name: "The Lotus", creator: "Lotus Collective", art: lotus, floor: "0.35 ETH", volume: "9.7 ETH", items: "640", supply: "640", owners: "420", chain: "Ethereum", description: "640 meditative stillness studies — each lotus a quiet vow that still water runs deeper than the storm." },
+  { slug: "void-samurai", name: "Void Samurai", creator: "Zero Studio", art: moon, floor: "1.08 ETH", volume: "32.1 ETH", items: "920", supply: "920", owners: "700", chain: "Arbitrum", description: "920 shadow-clad sentinels born under a red moon, bound by blood oath to the silence between worlds." },
 ];
+
+export function getCollection(slug: string) {
+  return collections.find((c) => c.slug === slug) ?? collections[0]!;
+}
+
+export function collectionSlugByName(name: string) {
+  return collections.find((c) => c.name === name)?.slug ?? collections[0]!.slug;
+}
+
+const COLLECTION_ITEM_POOL: Record<string, { words: string[]; traits: string[] }> = {
+  "The Ronin": { words: ["Shadow", "Moon", "Crimson", "Iron", "Silent", "Ember", "Twilight", "Frost", "Storm", "Ash"], traits: ["Warrior", "Red", "Hat", "Moon", "Night", "Cloak", "Wanderer", "Tattoo", "Blood", "Zen"] },
+  "Sakura Origins": { words: ["Bloom", "Petal", "Breeze", "Dawn", "Spring", "Whisper", "Drift", "Garden", "Canopy", "Mist"], traits: ["Peace", "Sakura", "Wind", "Bloom", "Petal", "Spring", "Dawn", "Breeze", "Blossom", "Soft"] },
+  "Cyber Edo": { words: ["Neon", "Grid", "Pulse", "Signal", "Hologram", "Rain", "Circuit", "Static", "Vector", "Overdrive"], traits: ["Temple", "Night", "Neon", "Cyber", "Edo", "Grid", "Hologram", "Rain", "Signal", "Pulse"] },
+  "The Lotus": { words: ["Dream", "Path", "Pond", "Stillness", "Bloom", "Reflection", "Mist", "Reed", "Lily", "Tranquil"], traits: ["Lotus", "Nature", "Calm", "Water", "Still", "Pond", "Zen", "Bloom", "Mist", "Green"] },
+  "Void Samurai": { words: ["Red", "Void", "Eclipse", "Fury", "Ash", "Wraith", "Onyx", "Abyss", "Hollow", "Dusk"], traits: ["Shadow", "Rage", "Blood", "Moon", "Void", "Dark", "Blade", "Fury", "Eclipse", "Ash"] },
+};
+
+/** Deterministic 10-item gallery for a collection page (no Math.random, so SSR/CSR match). */
+export function collectionItems(slug: string): typeof nfts {
+  const col = getCollection(slug);
+  const pool = COLLECTION_ITEM_POOL[col.name] ?? COLLECTION_ITEM_POOL["The Ronin"]!;
+  const basePrice = parseFloat(col.floor.replace(/[^0-9.]/g, "")) || 1;
+  return Array.from({ length: 10 }, (_, i) => {
+    const id = "#" + String(10 + i * 7 + 3).padStart(3, "0");
+    const price = (basePrice * (0.55 + (((i * 37) % 100) / 100) * 1.4)).toFixed(2) + " ETH";
+    const traits = [pool.traits[i % pool.traits.length]!, pool.traits[(i + 3) % pool.traits.length]!, pool.traits[(i + 6) % pool.traits.length]!];
+    return {
+      name: `${pool.words[i]} ${pool.words[(i + 5) % pool.words.length]}`,
+      id,
+      art: col.art,
+      collection: col.name,
+      price,
+      time: `${i + 1}h ago`,
+      traits,
+    };
+  });
+}
 
 export const nfts = [
   { name: "Shadow Walker", id: "#042", art: ronin, collection: "The Ronin", price: "1.23 ETH", time: "2h ago", traits: ["Warrior", "Red", "Hat"] },
@@ -180,7 +217,7 @@ export function Verified() { return <BadgeCheck className="inline size-3.5 fill-
 
 export function CollectionCard({ item, index = 0 }: { item: (typeof collections)[number]; index?: number }) {
   return (
-    <Link to="/collections/the-ronin" className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
+    <Link to="/collections/$slug" params={{ slug: item.slug }} className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
       <img src={item.art} alt={`${item.name} collection`} width={1024} height={1024} loading="lazy" className="size-20 shrink-0 rounded object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-display font-semibold">{item.name} <Verified /></h3>
