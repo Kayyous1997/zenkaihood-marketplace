@@ -162,29 +162,27 @@ export function Header() {
 }
 
 function AccountNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
-  const { connected } = useWallet();
+  const { connected, ready, wallet } = useWallet();
+  const disconnect = useDisconnectWallet();
+  if (!ready) return <div className={cn("h-9 w-36", className)} />;
   if (connected) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        <Button asChild className="gap-2"><Link to="/profile" onClick={onNavigate}><UserRound className="size-4" />My Account</Link></Button>
-        <Button variant="ghost" size="sm" onClick={() => { disconnectWallet(); onNavigate?.(); }}>Disconnect</Button>
+        <Button asChild className="gap-2"><Link to="/profile" onClick={onNavigate}><UserRound className="size-4" />{wallet}</Link></Button>
+        <Button variant="ghost" size="sm" onClick={() => { disconnect(); onNavigate?.(); }}>Disconnect</Button>
       </div>
     );
   }
   return <WalletDialog className={className} />;
 }
 
+/** Opens the RainbowKit connect modal (real wallets, real signatures). */
 export function WalletDialog({ className }: { className?: string | undefined }) {
+  const { openConnectModal } = useConnectModal();
   return (
-    <Dialog>
-      <DialogTrigger asChild><Button className={className}><WalletCards />Connect Wallet</Button></DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle className="font-display text-2xl">Connect your wallet</DialogTitle><DialogDescription>This preview demonstrates the marketplace interface. Choose a wallet to continue.</DialogDescription></DialogHeader>
-        <div className="grid gap-2 py-2">
-          {["MetaMask", "WalletConnect", "Coinbase Wallet"].map((wallet) => <Button key={wallet} variant="outline" onClick={() => connectWallet(wallet)} className="h-12 justify-between">{wallet}<ArrowRight /></Button>)}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Button className={className} onClick={() => openConnectModal?.()} disabled={!openConnectModal}>
+      <WalletCards />Connect Wallet
+    </Button>
   );
 }
 
