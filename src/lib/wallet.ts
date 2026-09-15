@@ -1,39 +1,35 @@
 import { useEffect, useState } from "react";
+import { useAccount, useDisconnect } from "wagmi";
 
-const KEY = "zenkai:wallet";
-const EVENT = "zenkai:wallet-change";
-
-export function getWallet(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(KEY);
+/** Shorten an EVM address for display: 0x7a3f...9c2e */
+export function shortenAddress(address?: string | null) {
+  if (!address) return "";
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export function connectWallet(name: string) {
-  window.localStorage.setItem(KEY, name);
-  window.dispatchEvent(new Event(EVENT));
-}
-
-export function disconnectWallet() {
-  window.localStorage.removeItem(KEY);
-  window.dispatchEvent(new Event(EVENT));
-}
-
-/** Returns the connected wallet name, or null. `ready` is false until hydrated. */
+/**
+ * Real wallet state, backed by wagmi / RainbowKit.
+ * `ready` stays false until the client has hydrated and reconnection settled.
+ */
 export function useWallet() {
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  const { address, isConnected, status, connector, chain } = useAccount();
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const sync = () => setWallet(getWallet());
-    sync();
-    setReady(true);
-    window.addEventListener(EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
+  useEffect(() => setMounted(true), []);
 
-  return { wallet, connected: Boolean(wallet), ready };
+  const ready = mounted && status !== "connecting" && status !== "reconnecting";
+
+  return {
+    address: mounted ? (address ?? null) : null,
+    wallet: mounted && address ? shortenAddress(address) : null,
+    connected: mounted && isConnected,
+    connectorName: connector?.name ?? null,
+    chainName: chain?.name ?? null,
+    ready,
+  };
+}
+
+export function useDisconnectWallet() {
+  const { disconnect } = useDisconnect();
+  return disconnect;
 }
