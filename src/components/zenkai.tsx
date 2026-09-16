@@ -1,4 +1,4 @@
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useChainModal, useConnectModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -20,8 +20,9 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Tag,
-  
+
   PlusSquare,
+  TriangleAlert,
   UserRound,
   Users,
   WalletCards,
@@ -163,9 +164,17 @@ export function Header() {
 }
 
 function AccountNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
-  const { connected, ready, wallet } = useWallet();
+  const { connected, ready, wallet, unsupported } = useWallet();
   const disconnect = useDisconnectWallet();
+  const { openChainModal } = useChainModal();
   if (!ready) return <div className={cn("h-9 w-36", className)} />;
+  if (connected && unsupported) {
+    return (
+      <Button variant="destructive" className={cn("gap-2", className)} onClick={() => openChainModal?.()}>
+        <TriangleAlert className="size-4" />Wrong network
+      </Button>
+    );
+  }
   if (connected) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
@@ -187,8 +196,24 @@ export function WalletDialog({ className }: { className?: string | undefined }) 
   );
 }
 
+/** Full-width warning shown on every page while the wallet is on an unsupported network. */
+function UnsupportedNetworkBanner() {
+  const { connected, unsupported, ready } = useWallet();
+  const { openChainModal } = useChainModal();
+  if (!ready || !connected || !unsupported) return null;
+  return (
+    <div className="flex items-center justify-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+      <TriangleAlert className="size-4 shrink-0" />
+      <span>Your wallet is connected to an unsupported network.</span>
+      <button type="button" onClick={() => openChainModal?.()} className="font-semibold underline underline-offset-2">
+        Switch network
+      </button>
+    </div>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen"><Header />{children}</div>;
+  return <div className="min-h-screen"><Header /><UnsupportedNetworkBanner />{children}</div>;
 }
 
 export function InkHero({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
