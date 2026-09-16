@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { arbitrum, base, mainnet, optimism, polygon } from "wagmi/chains";
+import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from "wagmi/chains";
 
 /**
  * WalletConnect Cloud project id (publishable). Set VITE_WALLETCONNECT_PROJECT_ID
@@ -13,6 +13,6 @@ export const wagmiConfig = getDefaultConfig({
   appName: "Zenkaihood",
   appDescription: "A premium digital art marketplace.",
   projectId: walletConnectProjectId || "00000000000000000000000000000000",
-  chains: [mainnet, base, arbitrum, optimism, polygon],
+  chains: [mainnet, base, baseSepolia, arbitrum, optimism, polygon],
   ssr: true,
 });
