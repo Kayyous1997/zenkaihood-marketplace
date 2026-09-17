@@ -1,4 +1,4 @@
-import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
+﻿import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -64,7 +64,7 @@ export const collections = [
   { slug: "the-ronin", name: "The Ronin", creator: "Zenkaihood", art: ronin, floor: "1.25 ETH", volume: "24.8 ETH", items: "1.2k", supply: "777", owners: "642", chain: "Ethereum", description: "A collection of 777 lone warriors, each carrying a story of honor, loss, and the endless pursuit of a greater tomorrow." },
   { slug: "sakura-origins", name: "Sakura Origins", creator: "Sakura Studio", art: sakura, floor: "0.42 ETH", volume: "12.6 ETH", items: "850", supply: "850", owners: "510", chain: "Ethereum", description: "850 hand-drawn blooms tracing the fleeting beauty of spring across an ephemeral petal-strewn skyline." },
   { slug: "cyber-edo", name: "Cyber Edo", creator: "Digital Forge", art: cyber, floor: "0.78 ETH", volume: "18.3 ETH", items: "1.5k", supply: "1.5k", owners: "980", chain: "Base", description: "A neon-lit reimagining of the Edo period: 1,500 holographic scrolls where circuitry meets calligraphy." },
-  { slug: "the-lotus", name: "The Lotus", creator: "Lotus Collective", art: lotus, floor: "0.35 ETH", volume: "9.7 ETH", items: "640", supply: "640", owners: "420", chain: "Ethereum", description: "640 meditative stillness studies — each lotus a quiet vow that still water runs deeper than the storm." },
+  { slug: "the-lotus", name: "The Lotus", creator: "Lotus Collective", art: lotus, floor: "0.35 ETH", volume: "9.7 ETH", items: "640", supply: "640", owners: "420", chain: "Ethereum", description: "640 meditative stillness studies â€” each lotus a quiet vow that still water runs deeper than the storm." },
   { slug: "void-samurai", name: "Void Samurai", creator: "Zero Studio", art: moon, floor: "1.08 ETH", volume: "32.1 ETH", items: "920", supply: "920", owners: "700", chain: "Arbitrum", description: "920 shadow-clad sentinels born under a red moon, bound by blood oath to the silence between worlds." },
 ];
 
@@ -126,7 +126,7 @@ const nav = [
 export function Brand() {
   return (
     <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="Zenkaihood home">
-      <span className="font-jp text-[2rem] font-black leading-none text-primary">蔵</span>
+      <span className="font-jp text-[2rem] font-black leading-none text-primary">è”µ</span>
       <span className="font-display text-xl font-semibold text-foreground">Zenkaihood</span>
     </Link>
   );
@@ -258,7 +258,7 @@ export function InkHero({ children, compact = false }: { children: ReactNode; co
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="font-jp text-2xl font-black text-primary">蔵</span>
+      <span className="font-jp text-2xl font-black text-primary">è”µ</span>
       <h2 className="font-display text-2xl font-semibold">{children}</h2>
       <div className="h-px flex-1 bg-border" />
       {action}
@@ -275,7 +275,7 @@ export function CollectionCard({ item, index = 0 }: { item: (typeof collections)
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-display font-semibold">{item.name} <Verified /></h3>
         <p className="mt-1 text-xs text-muted-foreground">by {item.creator}</p>
-        <div className="mt-3 flex gap-4 text-[11px]"><span>◆ {item.floor}<small> Floor</small></span><span>♨ {item.volume}<small> Volume</small></span><span>{item.items}<small> Items</small></span></div>
+        <div className="mt-3 flex gap-4 text-[11px]"><span>â—† {item.floor}<small> Floor</small></span><span>â™¨ {item.volume}<small> Volume</small></span><span>{item.items}<small> Items</small></span></div>
       </div>
     </Link>
   );
@@ -298,21 +298,21 @@ export function NftCard({ item, compact = false, index = 0 }: { item: (typeof nf
         </Button>
       </div>
       <div className="px-1 pb-1 pt-2">
-        <p className="text-[11px] text-muted-foreground">◉ {item.collection} <Verified /></p>
+        <p className="text-[11px] text-muted-foreground">â—‰ {item.collection} <Verified /></p>
         <h3 className="mt-0.5 truncate font-display text-sm font-semibold">{item.name} {item.id}</h3>
         {!compact && <div className="mt-1.5 flex flex-wrap gap-1">{item.traits.map((trait) => <span key={trait} className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{trait}</span>)}</div>}
-        <p className="mt-2 text-xs font-semibold">◆ {item.price}</p>
+        <p className="mt-2 text-xs font-semibold">â—† {item.price}</p>
         <p className="mt-1 text-[10px] text-muted-foreground">Listed {item.time}</p>
       </div>
     </Link>
   );
 }
 
-export function SelectBox({ placeholder, items }: { placeholder: string; items: string[] }) {
+export function SelectBox({ placeholder, items, onSelect }: { placeholder: string; items: string[]; onSelect?: (value: string) => void }) {
   return (
-    <Select>
+    <Select onValueChange={onSelect}>
       <SelectTrigger className="bg-surface text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>{items.map((item) => <SelectItem key={item} value={item.toLowerCase().replaceAll(" ", "-")}>{item}</SelectItem>)}</SelectContent>
+      <SelectContent>{items.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
     </Select>
   );
 }
@@ -351,20 +351,20 @@ export function PriceSummary({ price }: { price: number }) {
   return (
     <div className="rounded-md border border-border bg-surface/95 p-5">
       <h2 className="font-display text-lg font-semibold">Listing Summary</h2>
-      <div className="my-5 flex items-center gap-4"><img src={ronin} alt="The Ronin #042" width={1024} height={1024} className="size-20 rounded object-cover" /><div><h3 className="font-display font-semibold">The Ronin #042 <Verified /></h3><p className="text-xs text-muted-foreground">Sakura Origins 🌸</p><p className="mt-1 text-xs text-muted-foreground">Token ID: #042</p></div></div>
+      <div className="my-5 flex items-center gap-4"><img src={ronin} alt="The Ronin #042" width={1024} height={1024} className="size-20 rounded object-cover" /><div><h3 className="font-display font-semibold">The Ronin #042 <Verified /></h3><p className="text-xs text-muted-foreground">Sakura Origins ðŸŒ¸</p><p className="mt-1 text-xs text-muted-foreground">Token ID: #042</p></div></div>
       <div className="space-y-4 border-y border-border py-4 text-sm">
         <SummaryRow label="Your Price" value={`${price || 0} ETH`} sub={money(price || 0)} />
         <SummaryRow label="Marketplace Fee (2.5%)" value={`${fee.toFixed(4)} ETH`} sub={money(fee)} />
         <SummaryRow label="Creator Royalty (5%)" value={`${royalty.toFixed(3)} ETH`} sub={money(royalty)} />
       </div>
       <div className="mt-4"><SummaryRow label="You'll Receive" value={`${receive.toFixed(4)} ETH`} sub={money(receive)} strong /></div>
-      <p className="mt-5 text-[11px] leading-relaxed text-muted-foreground">ⓘ Royalty percentage is set by the collection creator and cannot be changed by the seller.</p>
+      <p className="mt-5 text-[11px] leading-relaxed text-muted-foreground">â“˜ Royalty percentage is set by the collection creator and cannot be changed by the seller.</p>
     </div>
   );
 }
 
 function SummaryRow({ label, value, sub, strong }: { label: string; value: string; sub: string; strong?: boolean }) {
-  return <div className="flex justify-between gap-4"><span className={cn("text-muted-foreground", strong && "font-semibold text-foreground")}>{label}</span><span className="text-right"><b className={cn(strong && "font-display text-base")}>{value}</b><small className="block text-muted-foreground">≈ {sub}</small></span></div>;
+  return <div className="flex justify-between gap-4"><span className={cn("text-muted-foreground", strong && "font-semibold text-foreground")}>{label}</span><span className="text-right"><b className={cn(strong && "font-display text-base")}>{value}</b><small className="block text-muted-foreground">â‰ˆ {sub}</small></span></div>;
 }
 
 export function ListingReview({ price }: { price: number }) {
@@ -391,7 +391,7 @@ export function SellDialog({ itemName = "your NFT", defaultPrice = "1.0", label 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">{done ? "Listing created" : `Sell ${itemName}`}</DialogTitle>
-          <DialogDescription>{done ? `${itemName} is now offered at ${price} ETH. This is a visual preview — no real transaction occurred.` : "Set your asking price. Your NFT stays in your wallet until it sells."}</DialogDescription>
+          <DialogDescription>{done ? `${itemName} is now offered at ${price} ETH. This is a visual preview â€” no real transaction occurred.` : "Set your asking price. Your NFT stays in your wallet until it sells."}</DialogDescription>
         </DialogHeader>
         {!done && (
           <div className="space-y-4">
@@ -399,9 +399,9 @@ export function SellDialog({ itemName = "your NFT", defaultPrice = "1.0", label 
               <label className="field-label mt-0" htmlFor="sell-price">Price</label>
               <div className="flex">
                 <input id="sell-price" value={priceText} onChange={(event) => setPriceText(event.target.value)} inputMode="decimal" className="control min-w-0 flex-1 rounded-r-none" />
-                <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">◆ ETH</span>
+                <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">â—† ETH</span>
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">≈ {money(price)} (estimated)</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">â‰ˆ {money(price)} (estimated)</p>
             </div>
             <div>
               <label className="field-label mt-0" htmlFor="sell-duration">Duration</label>
@@ -448,8 +448,8 @@ export function AccountRail() {
         );
       })}
       <div className="mt-16 hidden flex-col items-center gap-3 opacity-70 xl:flex">
-        <span className="font-jp text-4xl font-semibold leading-tight text-foreground/70">前<br />進</span>
-        <span className="grid size-8 place-content-center rounded-sm bg-primary font-jp text-[10px] text-primary-foreground">禅</span>
+        <span className="font-jp text-4xl font-semibold leading-tight text-foreground/70">å‰<br />é€²</span>
+        <span className="grid size-8 place-content-center rounded-sm bg-primary font-jp text-[10px] text-primary-foreground">ç¦…</span>
       </div>
     </aside>
   );
@@ -462,7 +462,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
     return (
       <Shell>
         <div className="mx-auto grid min-h-[60vh] max-w-md place-content-center px-4 text-center">
-          <span className="mx-auto font-jp text-5xl font-black text-primary">蔵</span>
+          <span className="mx-auto font-jp text-5xl font-black text-primary">è”µ</span>
           <h1 className="mt-4 font-display text-3xl font-semibold">Connect your wallet</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Your profile, collectibles, listings and activity are available once a wallet is connected.</p>
           <div className="mt-6 flex justify-center"><WalletDialog /></div>
@@ -497,20 +497,20 @@ export const owned = [
 ];
 
 export const listings = [
-  { name: "The Ronin", id: "#042", art: ronin, collection: "Sakura Origins", price: "0.58", usd: "1,427.32", left: "2 days left", date: "Aug 22, 2025 · 14:30" },
-  { name: "Sakura Bloom", id: "#118", art: sakura, collection: "Sakura Origins", price: "0.56", usd: "1,380.24", left: "5 days left", date: "Aug 25, 2025 · 10:15" },
-  { name: "Lotus Dream", id: "#263", art: lotus, collection: "The Lotus", price: "0.42", usd: "1,035.12", left: "7 days left", date: "Aug 27, 2025 · 09:45" },
-  { name: "Void Samurai", id: "#267", art: moon, collection: "The Ronin", price: "1.67", usd: "4,125.40", left: "10 days left", date: "Aug 30, 2025 · 16:20" },
-  { name: "Mountain Path", id: "#318", art: landscape, collection: "The Lotus", price: "1.18", usd: "2,912.16", left: "12 days left", date: "Sep 1, 2025 · 11:50" },
+  { name: "The Ronin", id: "#042", art: ronin, collection: "Sakura Origins", price: "0.58", usd: "1,427.32", left: "2 days left", date: "Aug 22, 2025 Â· 14:30" },
+  { name: "Sakura Bloom", id: "#118", art: sakura, collection: "Sakura Origins", price: "0.56", usd: "1,380.24", left: "5 days left", date: "Aug 25, 2025 Â· 10:15" },
+  { name: "Lotus Dream", id: "#263", art: lotus, collection: "The Lotus", price: "0.42", usd: "1,035.12", left: "7 days left", date: "Aug 27, 2025 Â· 09:45" },
+  { name: "Void Samurai", id: "#267", art: moon, collection: "The Ronin", price: "1.67", usd: "4,125.40", left: "10 days left", date: "Aug 30, 2025 Â· 16:20" },
+  { name: "Mountain Path", id: "#318", art: landscape, collection: "The Lotus", price: "1.18", usd: "2,912.16", left: "12 days left", date: "Sep 1, 2025 Â· 11:50" },
 ];
 
 export const userActivity = [
-  { type: "Purchase", state: "Completed", date: "Aug 30, 2025 · 14:32", name: "The Ronin", id: "#042", art: ronin, collection: "Sakura Origins", detail: "Bought for 0.58 ETH", price: "0.58", usd: "1,427.32", hash: "0x7a3f...9c2e" },
-  { type: "Sale", state: "Completed", date: "Aug 28, 2025 · 11:17", name: "Sakura Bloom", id: "#118", art: sakura, collection: "Sakura Origins", detail: "Sold for 0.56 ETH", price: "0.56", usd: "1,380.24", hash: "0x8f2c...6d4a" },
-  { type: "Listing", state: "Active", date: "Aug 27, 2025 · 09:45", name: "Lotus Dream", id: "#263", art: lotus, collection: "The Lotus", detail: "Listed for 0.42 ETH", price: "0.42", usd: "1,035.12", hash: "0x9a1e...7a0c" },
-  { type: "Bid", state: "Open", date: "Aug 25, 2025 · 18:22", name: "Void Samurai", id: "#267", art: moon, collection: "The Ronin", detail: "Placed bid of 0.35 ETH", price: "0.35", usd: "862.44", hash: "0x4b1a...d7e3" },
-  { type: "Transfer", state: "Completed", date: "Aug 24, 2025 · 16:08", name: "Mountain Path", id: "#318", art: landscape, collection: "The Lotus", detail: "Received from 0x3f2c...9e1a", price: "", usd: "", hash: "0x3f2c...9e1a" },
-  { type: "Purchase", state: "Completed", date: "Aug 22, 2025 · 12:36", name: "Cherry Blossom", id: "#142", art: sakura, collection: "Sakura Origins", detail: "Bought for 0.82 ETH", price: "0.82", usd: "2,012.16", hash: "0x6d7e...2c8f" },
+  { type: "Purchase", state: "Completed", date: "Aug 30, 2025 Â· 14:32", name: "The Ronin", id: "#042", art: ronin, collection: "Sakura Origins", detail: "Bought for 0.58 ETH", price: "0.58", usd: "1,427.32", hash: "0x7a3f...9c2e" },
+  { type: "Sale", state: "Completed", date: "Aug 28, 2025 Â· 11:17", name: "Sakura Bloom", id: "#118", art: sakura, collection: "Sakura Origins", detail: "Sold for 0.56 ETH", price: "0.56", usd: "1,380.24", hash: "0x8f2c...6d4a" },
+  { type: "Listing", state: "Active", date: "Aug 27, 2025 Â· 09:45", name: "Lotus Dream", id: "#263", art: lotus, collection: "The Lotus", detail: "Listed for 0.42 ETH", price: "0.42", usd: "1,035.12", hash: "0x9a1e...7a0c" },
+  { type: "Bid", state: "Open", date: "Aug 25, 2025 Â· 18:22", name: "Void Samurai", id: "#267", art: moon, collection: "The Ronin", detail: "Placed bid of 0.35 ETH", price: "0.35", usd: "862.44", hash: "0x4b1a...d7e3" },
+  { type: "Transfer", state: "Completed", date: "Aug 24, 2025 Â· 16:08", name: "Mountain Path", id: "#318", art: landscape, collection: "The Lotus", detail: "Received from 0x3f2c...9e1a", price: "", usd: "", hash: "0x3f2c...9e1a" },
+  { type: "Purchase", state: "Completed", date: "Aug 22, 2025 Â· 12:36", name: "Cherry Blossom", id: "#142", art: sakura, collection: "Sakura Origins", detail: "Bought for 0.82 ETH", price: "0.82", usd: "2,012.16", hash: "0x6d7e...2c8f" },
 ];
 
 export function PageHead({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: ReactNode; action?: ReactNode }) {
@@ -546,7 +546,7 @@ export function OwnedCard({ item, badge = "Owned", index = 0 }: { item: (typeof 
       </div>
       <div className="p-3">
         <h3 className="truncate font-display text-sm font-semibold">{item.name} {item.id}</h3>
-        <p className="mt-1 text-[11px] text-muted-foreground">✿ {item.collection} <Verified /></p>
+        <p className="mt-1 text-[11px] text-muted-foreground">âœ¿ {item.collection} <Verified /></p>
         <p className="mt-1 text-[11px] text-muted-foreground">Token ID: {item.id}</p>
         <p className="mt-1 text-xs font-semibold">{item.price}</p>
         <span className="mt-2 inline-block rounded-sm bg-success/15 px-2 py-0.5 text-[10px] text-success">{badge}</span>
@@ -575,3 +575,4 @@ export function InfoCard({ title, rows }: { title: string; rows: readonly (reado
     </div>
   );
 }
+

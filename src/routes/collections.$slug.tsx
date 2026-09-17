@@ -23,7 +23,9 @@ import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useSweep";
-import { MAX_SWEEP_ITEMS } from "@/hooks/useSweep";
+import { useCollectionMeta } from "@/hooks/useCollectionMeta";
+import { Globe, MessageCircle, Send, Twitter } from "lucide-react";
+
 
 export const Route = createFileRoute("/collections/$slug")({
   head: ({ params }) => ({
@@ -49,6 +51,9 @@ function CollectionPage() {
   const [colName, setColName] = useState<string | null>(null);
 
   const { items: cartItems, addItem, removeItem, clearCart } = useSweepCart();
+
+  // Supabase off-chain metadata (logo, banner, socials) — primary source
+  const { data: supabaseMeta } = useCollectionMeta(collectionAddress);
 
   const { data: colData, isLoading: colLoading } = useQuery({
     queryKey: ["collection", collectionAddress],
@@ -86,13 +91,16 @@ function CollectionPage() {
   const listings = listingsData?.listings ?? [];
   const auctions = (auctionsData?.auctions ?? []).filter((a) => a.active);
 
+  // Resolve name: Supabase > IPFS metadata > address fallback
   useEffect(() => {
-    if (col?.metadataURI) {
+    if (supabaseMeta?.name) {
+      setColName(supabaseMeta.name);
+    } else if (col?.metadataURI) {
       fetchMetadata(col.metadataURI).then((meta) => {
         if (meta?.name) setColName(meta.name);
       });
     }
-  }, [col?.metadataURI]);
+  }, [supabaseMeta?.name, col?.metadataURI]);
 
   function handleAddToCart(listing: ActiveListingsResult["listings"][number]) {
     if (listing.paymentToken !== ETH_ADDRESS) {
@@ -137,20 +145,31 @@ function CollectionPage() {
   const royaltyDisplay = col.royaltyBps != null ? formatBps(col.royaltyBps) : "—";
   const tokenStandard: "ERC-721" | "ERC-1155" = col.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721";
 
+  // Resolve logo: Supabase > IPFS metadataURI > placeholder
+  const logoSrc = supabaseMeta?.logo_url ?? resolveImageUri(col.metadataURI ?? "") ?? null;
+  const bannerSrc = supabaseMeta?.banner_url ?? null;
+  const colDescription = supabaseMeta?.description ?? null;
+
   return (
     <Shell>
       <InkHero compact>
-        <div className="relative mx-auto max-w-[1440px] px-4 py-8 sm:px-8 lg:px-14">
+        {/* Banner strip */}
+        {bannerSrc && (
+          <div className="h-36 w-full overflow-hidden">
+            <img src={bannerSrc} alt="Collection banner" className="size-full object-cover" />
+          </div>
+        )}
+        <div className={cn("relative mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14", bannerSrc ? "pb-8 pt-4" : "py-8")}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-            {col.metadataURI ? (
+            {logoSrc ? (
               <img
-                src={resolveImageUri(col.metadataURI) ?? ""}
+                src={logoSrc}
                 alt={displayName}
-                className="size-32 rounded-md border-[6px] border-surface object-cover shadow-art"
+                className={cn("size-32 rounded-md border-[6px] border-surface object-cover shadow-art", bannerSrc && "-mt-16")}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             ) : (
-              <div className="size-32 rounded-md border-[6px] border-surface bg-muted shadow-art" />
+              <div className={cn("size-32 rounded-md border-[6px] border-surface bg-muted shadow-art", bannerSrc && "-mt-16")} />
             )}
             <div className="max-w-lg">
               <h1 className="font-display text-4xl font-semibold">
@@ -159,9 +178,35 @@ function CollectionPage() {
               <p className="mt-1 text-sm">
                 by <span className="font-mono text-xs">{col.creator.slice(0, 8)}…{col.creator.slice(-6)}</span>
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {tokenStandard} · Royalty {royaltyDisplay}
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{tokenStandard} · Royalty {royaltyDisplay}</p>
+              {colDescription && (
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{colDescription}</p>
+              )}
+              {/* Social links from Supabase */}
+              {(supabaseMeta?.website_url || supabaseMeta?.twitter_handle || supabaseMeta?.discord_url || supabaseMeta?.telegram_url) && (
+                <div className="mt-3 flex items-center gap-3">
+                  {supabaseMeta.website_url && (
+                    <a href={supabaseMeta.website_url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title="Website">
+                      <Globe className="size-4" />
+                    </a>
+                  )}
+                  {supabaseMeta.twitter_handle && (
+                    <a href={`https://x.com/${supabaseMeta.twitter_handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title="X / Twitter">
+                      <Twitter className="size-4" />
+                    </a>
+                  )}
+                  {supabaseMeta.discord_url && (
+                    <a href={supabaseMeta.discord_url.startsWith("http") ? supabaseMeta.discord_url : `https://${supabaseMeta.discord_url}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title="Discord">
+                      <MessageCircle className="size-4" />
+                    </a>
+                  )}
+                  {supabaseMeta.telegram_url && (
+                    <a href={supabaseMeta.telegram_url.startsWith("http") ? supabaseMeta.telegram_url : `https://${supabaseMeta.telegram_url}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title="Telegram">
+                      <Send className="size-4" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-6 flex flex-col justify-between gap-4 border-t border-border pt-3 lg:flex-row lg:items-center">
