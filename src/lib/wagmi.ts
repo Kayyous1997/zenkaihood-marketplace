@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from "wagmi/chains";
+import { baseSepolia } from "wagmi/chains";
 
 /**
  * WalletConnect Cloud project id (publishable). Set VITE_WALLETCONNECT_PROJECT_ID
@@ -7,12 +7,17 @@ import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from "wagmi/c
  * (MetaMask, Rabby, Coinbase Wallet, ...) work without it.
  */
 export const walletConnectProjectId =
-  (import.meta.env['VITE_WALLETCONNECT_PROJECT_ID'] as string | undefined) ?? "";
+  (import.meta.env["VITE_WALLETCONNECT_PROJECT_ID"] as string | undefined) ?? "";
 
+/**
+ * Primary supported chain: Base Sepolia (chain ID 84532).
+ * All Marketplace + CollectionRegistry contracts are deployed here.
+ * Update this array when mainnet contracts are deployed.
+ */
 export const wagmiConfig = getDefaultConfig({
   appName: "Zenkaihood",
   appDescription: "A premium digital art marketplace.",
   projectId: walletConnectProjectId || "00000000000000000000000000000000",
-  chains: [mainnet, base, baseSepolia, arbitrum, optimism, polygon],
+  chains: [baseSepolia],
   ssr: true,
 });

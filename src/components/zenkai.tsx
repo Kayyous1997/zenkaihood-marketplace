@@ -1,4 +1,4 @@
-import { useChainModal, useConnectModal } from "@rainbow-me/rainbowkit";
+import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -9,16 +9,17 @@ import {
   ExternalLink,
   Filter,
   Gem,
-  Globe2,
   Grid2X2,
   Heart,
   List,
   Menu,
+  Moon,
   Search,
   Settings,
   Share2,
   ShieldCheck,
   SlidersHorizontal,
+  Sun,
   Tag,
 
   PlusSquare,
@@ -28,7 +29,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import cyber from "@/assets/cyber.jpg";
 import landscape from "@/assets/zenkai-landscape.jpg";
@@ -148,7 +149,7 @@ export function Header() {
           <div className="flex h-9 w-[310px] items-center gap-2 rounded-md border border-border bg-surface px-3 text-muted-foreground">
             <Search className="size-4" /><span className="text-xs">Search NFTs, collections, or creators...</span>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Language"><Globe2 /></Button>
+          <ThemeToggle />
           <AccountNav />
         </div>
         <Button className="ml-auto md:hidden" variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Open menu">
@@ -163,37 +164,65 @@ export function Header() {
   );
 }
 
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("zenkaihood-theme");
+    const isDark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setDark(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+  }, []);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    window.localStorage.setItem("zenkaihood-theme", next ? "dark" : "light");
+  }
+
+  return (
+    <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
+      {dark ? <Sun /> : <Moon />}
+    </Button>
+  );
+}
+
 function AccountNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
-  const { connected, ready, wallet, unsupported } = useWallet();
-  const disconnect = useDisconnectWallet();
-  const { openChainModal } = useChainModal();
-  if (!ready) return <div className={cn("h-9 w-36", className)} />;
-  if (connected && unsupported) {
-    return (
-      <Button variant="destructive" className={cn("gap-2", className)} onClick={() => openChainModal?.()}>
-        <TriangleAlert className="size-4" />Wrong network
-      </Button>
-    );
-  }
-  if (connected) {
-    return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <Button asChild className="gap-2"><Link to="/profile" onClick={onNavigate}><UserRound className="size-4" />{wallet}</Link></Button>
-        <Button variant="ghost" size="sm" onClick={() => { disconnect(); onNavigate?.(); }}>Disconnect</Button>
-      </div>
-    );
-  }
-  return <WalletDialog className={className} />;
+  return (
+    <div className={cn("flex items-center", className)}>
+      <ConnectButton.Custom>
+        {({ account, chain, openAccountModal, openChainModal, openConnectModal, authenticationStatus, mounted }) => {
+          const ready = mounted && authenticationStatus !== "loading";
+          const connected = ready && account && chain;
+          if (!ready) return <div aria-hidden="true" className="h-9 w-36" />;
+          if (!connected) {
+            return <Button className="gap-2" onClick={openConnectModal}><WalletCards />Connect Wallet</Button>;
+          }
+          if (chain.unsupported) {
+            return <Button variant="destructive" className="gap-2" onClick={openChainModal}><TriangleAlert className="size-4" />Wrong network</Button>;
+          }
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="hidden gap-2 sm:flex" onClick={openChainModal}>
+                {chain.hasIcon && chain.iconUrl && <img alt={chain.name ?? "Network"} src={chain.iconUrl} className="size-4 rounded-full" />}
+                {chain.name}
+              </Button>
+              <Button className="gap-2" onClick={openAccountModal}>
+                <UserRound className="size-4" />{account.displayName}
+                {account.displayBalance && <span className="hidden text-xs opacity-75 xl:inline">{account.displayBalance}</span>}
+              </Button>
+            </div>
+          );
+        }}
+      </ConnectButton.Custom>
+    </div>
+  );
 }
 
 /** Opens the RainbowKit connect modal (real wallets, real signatures). */
 export function WalletDialog({ className }: { className?: string | undefined }) {
-  const { openConnectModal } = useConnectModal();
-  return (
-    <Button className={className} onClick={() => openConnectModal?.()} disabled={!openConnectModal}>
-      <WalletCards />Connect Wallet
-    </Button>
-  );
+  return <AccountNav className={className} />;
 }
 
 /** Full-width warning shown on every page while the wallet is on an unsupported network. */
