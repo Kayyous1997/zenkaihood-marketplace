@@ -1,14 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Heart, Share2, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowLeft, Heart, Share2, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
 import { Shell, Verified } from "@/components/zenkai";
+import { BuyDialog, SellDialog, OfferDialog, CreateAuctionDialog } from "@/components/dialogs";
 import { useWallet } from "@/lib/wallet";
 import { gqlClient } from "@/indexer/client";
 import {
@@ -23,10 +20,6 @@ import {
 import { DEFAULT_REFETCH_MS, SLOW_REFETCH_MS } from "@/indexer/events";
 import { fetchMetadata, resolveImageUri, type NftMetadata } from "@/lib/metadata";
 import { formatEthCompact, formatBps } from "@/lib/token-format";
-import { useListingQuote } from "@/hooks/useListingQuote";
-import { usePurchase } from "@/hooks/usePurchase";
-import { parseContractError } from "@/lib/contract-errors";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/nfts/$id")({
@@ -90,13 +83,6 @@ function NftDetailPage() {
 
   // Find cheapest active listing
   const activeListing = listings.find((l) => l.active);
-  const listingId = activeListing ? BigInt(activeListing.id) : undefined;
-
-  // Live fee quote for active listing
-  const { data: quote } = useListingQuote(listingId, 1n);
-
-  // Purchase hook
-  const { buy, buyERC20, isPending, isConfirming } = usePurchase();
 
   // Resolve token metadata from collection metadataURI
   useEffect(() => {
@@ -110,21 +96,6 @@ function NftDetailPage() {
     : "Unknown";
 
   const isOwner = wallet && token?.owner?.toLowerCase() === wallet.toLowerCase();
-  const isEthListing = activeListing?.paymentToken === ETH_ADDRESS;
-
-  async function handleBuy() {
-    if (!activeListing || !quote) return;
-    try {
-      if (isEthListing) {
-        await buy(BigInt(activeListing.id), 1n, (quote as { buyerTotal: bigint }).buyerTotal);
-      } else {
-        await buyERC20(BigInt(activeListing.id), 1n);
-      }
-      toast.success("Purchase successful!", { id: "buy" });
-    } catch (err) {
-      toast.error(parseContractError(err), { id: "buy" });
-    }
-  }
 
   if (tokenLoading) {
     return (
@@ -198,23 +169,30 @@ function NftDetailPage() {
                         : `${activeListing.pricePerItem} tokens`}
                     </b>
                   </div>
-                  {quote && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Total (incl. fees): {formatEthCompact((quote as { buyerTotal: bigint }).buyerTotal)}
-                    </p>
-                  )}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {!isOwner && (
-                      <Button
-                        className="press"
-                        onClick={handleBuy}
-                        disabled={!wallet || isPending || isConfirming || !quote}
-                      >
-                        {isPending ? "Confirm in wallet…" : isConfirming ? "Processing…" : "Buy Now"}
-                        <WalletCards />
-                      </Button>
+                      <BuyDialog
+                        listingId={BigInt(activeListing.id)}
+                        pricePerItem={BigInt(activeListing.pricePerItem)}
+                        quantity={BigInt(activeListing.quantity)}
+                        paymentToken={activeListing.paymentToken}
+                        tokenId={tokenId}
+                        collectionId={collectionAddress}
+                      />
                     )}
-                    <Button variant="outline" className="press"><WalletCards /> Make Offer</Button>
+                    <OfferDialog
+                      nftContract={collectionAddress as `0x${string}`}
+                      tokenId={tokenId}
+                      tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                    />
+                    {isOwner && (
+                      <CreateAuctionDialog
+                        nftContract={collectionAddress as `0x${string}`}
+                        tokenId={tokenId}
+                        tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        royaltyBps={token?.collection.royaltyBps ?? 0}
+                      />
+                    )}
                     <Button
                       size="icon"
                       variant="outline"
@@ -234,9 +212,28 @@ function NftDetailPage() {
                   <p className="text-sm text-muted-foreground">Not currently listed for sale.</p>
                   <div className="flex flex-wrap gap-2">
                     {isOwner && (
-                      <Button className="press"><WalletCards /> List for Sale</Button>
+                      <SellDialog
+                        nftContract={collectionAddress as `0x${string}`}
+                        tokenId={tokenId}
+                        tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        royaltyBps={token?.collection.royaltyBps ?? 0}
+                        label="List for Sale"
+                        variant="default"
+                      />
                     )}
-                    <Button variant="outline" className="press"><WalletCards /> Make Offer</Button>
+                    <OfferDialog
+                      nftContract={collectionAddress as `0x${string}`}
+                      tokenId={tokenId}
+                      tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                    />
+                    {isOwner && (
+                      <CreateAuctionDialog
+                        nftContract={collectionAddress as `0x${string}`}
+                        tokenId={tokenId}
+                        tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        royaltyBps={token?.collection.royaltyBps ?? 0}
+                      />
+                    )}
                   </div>
                 </div>
               )}
