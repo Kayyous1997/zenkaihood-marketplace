@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  ChevronDown, ExternalLink, Globe, ImagePlus, MessageCircle,
+  ChevronDown, Globe, ImagePlus, MessageCircle,
   Send, Settings, Twitter, Wallet,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSignMessage } from "wagmi";
 import { toast } from "sonner";
 
@@ -69,8 +69,41 @@ function RegisterCollectionPage() {
     isValidAddress ? (contract as `0x${string}`) : undefined
   );
 
-  const { registerCollection, isPending, isConfirming, isSuccess, data: txData } = useRegistry();
+  const { registerCollection, hash: txHash, isPending, isConfirming, isSuccess, reset } = useRegistry();
   const { mutateAsync: saveCollectionMeta } = useSaveCollectionMeta();
+
+  // Save Supabase metadata after on-chain tx is confirmed
+  const [pendingMeta, setPendingMeta] = useState<null | {
+    logoUrl: string | null; bannerUrl: string | null;
+  }>(null);
+
+  useEffect(() => {
+    if (isSuccess && pendingMeta && isSupabaseConfigured && session && wallet) {
+      saveCollectionMeta({
+        contract_address: contract,
+        wallet_address: wallet.toLowerCase(),
+        name: name || null,
+        description: description || null,
+        logo_url: pendingMeta.logoUrl,
+        banner_url: pendingMeta.bannerUrl,
+        website_url: website || null,
+        twitter_handle: twitter || null,
+        discord_url: discord || null,
+        telegram_url: telegram || null,
+      }).then(() => {
+        setPendingMeta(null);
+        setIsSubmitting(false);
+        toast.success("Collection registered & metadata saved!", { id: "register" });
+      }).catch((err: unknown) => {
+        setPendingMeta(null);
+        setIsSubmitting(false);
+        toast.error(err instanceof Error ? err.message : "Metadata save failed.", { id: "register" });
+      });
+    } else if (isSuccess && !isSupabaseConfigured) {
+      setIsSubmitting(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess]);
 
   // ─── Image pick handlers ──────────────────────────────────────────────────
   function handleImagePick(
@@ -107,71 +140,46 @@ function RegisterCollectionPage() {
     if (isSupabaseConfigured && !session) { toast.error("Sign in with your wallet first to save collection metadata."); return; }
 
     setIsSubmitting(true);
-    const toastId = "register";
 
     try {
-      // 1. Upload images to Supabase Storage
+      // 1. Upload images to Supabase Storage first (before on-chain tx)
       let logoUrl: string | null = null;
       let bannerUrl: string | null = null;
 
       if (isSupabaseConfigured && session) {
         if (logoFile) {
-          toast.loading("Uploading logo…", { id: toastId });
+          toast.loading("Uploading logo…", { id: "upload" });
           logoUrl = await uploadCollectionImage(contract, "logo", logoFile);
+          toast.dismiss("upload");
         }
         if (bannerFile) {
-          toast.loading("Uploading banner…", { id: toastId });
+          toast.loading("Uploading banner…", { id: "upload" });
           bannerUrl = await uploadCollectionImage(contract, "banner", bannerFile);
+          toast.dismiss("upload");
         }
       }
 
-      // 2. Register on-chain
-      toast.loading("Waiting for wallet confirmation…", { id: toastId });
-      const txHash = await registerCollection(
+      // Store meta for the useEffect to pick up after isSuccess fires
+      setPendingMeta({ logoUrl, bannerUrl });
+
+      // 2. Submit the on-chain tx — useRegistry handles its own toasts internally
+      await registerCollection(
         contract as `0x${string}`,
         tokenStandard === "ERC-721" ? 0 : 1,
         payout as `0x${string}`,
         royaltyBps,
       );
-
-      toast.loading("Transaction confirming…", { id: toastId });
-
-      // 3. Save off-chain metadata
-      if (isSupabaseConfigured && session) {
-        await saveCollectionMeta({
-          contract_address: contract,
-          wallet_address: wallet.toLowerCase(),
-          name: name || null,
-          description: description || null,
-          logo_url: logoUrl,
-          banner_url: bannerUrl,
-          website_url: website || null,
-          twitter_handle: twitter || null,
-          discord_url: discord || null,
-          telegram_url: telegram || null,
-        });
-      }
-
-      toast.success(
-        "Collection registered!",
-        {
-          id: toastId,
-          description: txHash ? (
-            <a href={txUrl(txHash as string)} target="_blank" rel="noreferrer" className="underline">
-              View on BaseScan ↗
-            </a>
-          ) : undefined,
-        },
-      );
+      // isSubmitting stays true until useEffect fires on isSuccess
     } catch (err) {
-      toast.error(parseContractError(err), { id: toastId });
-    } finally {
+      setPendingMeta(null);
       setIsSubmitting(false);
+      toast.error(parseContractError(err), { id: "register" });
     }
   }
 
+  const needsSignIn = isSupabaseConfigured && !session;
   const isWorking = isPending || isConfirming || isSubmitting;
-  const canSubmit = !!(wallet && isValidAddress && payout && !isRegistered && !isWorking);
+  const canSubmit = !!(wallet && isValidAddress && payout && !isRegistered && !isWorking && !needsSignIn);
 
   return (
     <AccountShell>
@@ -368,6 +376,11 @@ function RegisterCollectionPage() {
             {isSuccess && (
               <div className="mt-4 rounded-md bg-success/10 p-3 text-sm text-success">
                 ✓ Collection registered! It will appear in the marketplace once the subgraph indexes the transaction.
+                {txHash && (
+                  <a href={txUrl(txHash)} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-2 hover:opacity-80">
+                    View on BaseScan ↗
+                  </a>
+                )}
               </div>
             )}
 
@@ -381,6 +394,8 @@ function RegisterCollectionPage() {
               >
                 {!wallet
                   ? "Connect Wallet"
+                  : needsSignIn
+                  ? "Sign in Required"
                   : isPending
                   ? "Confirm in wallet…"
                   : isConfirming
