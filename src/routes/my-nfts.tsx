@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Copy, Grid2X2, List, Plus, RefreshCw, SellDialog } from "lucide-react";
+import { CalendarDays, Copy, Grid2X2, List, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { AccountShell, InfoCard, OwnedCard, PageHead, SelectBox, SellDialog as SellDialogComponent, Tabs, Verified } from "@/components/zenkai";
+import { AccountShell, InfoCard, PageHead, SelectBox, Tabs } from "@/components/zenkai";
+import { SellDialog } from "@/components/dialogs";
 import { useWallet } from "@/lib/wallet";
 import { gqlClient } from "@/indexer/client";
 import {
@@ -14,6 +15,8 @@ import {
   type Erc1155BalancesResult,
 } from "@/indexer/queries";
 import { DEFAULT_REFETCH_MS } from "@/indexer/events";
+import { useTokenMetadata } from "@/hooks/useTokenMetadata";
+import { resolveImageUri } from "@/lib/metadata";
 
 export const Route = createFileRoute("/my-nfts")({
   head: () => ({ meta: [
@@ -120,19 +123,13 @@ function MyNftsPage() {
             ) : (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
                 {erc721Tokens.map((token, index) => (
-                  <Link
+                  <TokenCard
                     key={token.id}
-                    to="/nfts/$id"
-                    params={{ id: `${token.collection.id}-${token.tokenId}` }}
-                    className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <div className="aspect-square bg-muted" />
-                    <div className="p-2">
-                      <p className="truncate font-display text-xs font-semibold">#{token.tokenId}</p>
-                      <p className="truncate text-[10px] text-muted-foreground">{token.collection.id.slice(0, 8)}…</p>
-                    </div>
-                  </Link>
+                    collectionId={token.collection.id}
+                    tokenId={token.tokenId}
+                    tokenStandard="ERC-721"
+                    index={index}
+                  />
                 ))}
               </div>
             )
@@ -142,19 +139,14 @@ function MyNftsPage() {
             ) : (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
                 {erc1155Balances.map((bal, index) => (
-                  <Link
+                  <TokenCard
                     key={bal.id}
-                    to="/nfts/$id"
-                    params={{ id: `${bal.collection.id}-${bal.tokenId}` }}
-                    className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <div className="aspect-square bg-muted" />
-                    <div className="p-2">
-                      <p className="truncate font-display text-xs font-semibold">#{bal.tokenId}</p>
-                      <p className="text-[10px] text-muted-foreground">Qty: {bal.balance}</p>
-                    </div>
-                  </Link>
+                    collectionId={bal.collection.id}
+                    tokenId={bal.tokenId}
+                    tokenStandard="ERC-1155"
+                    quantity={bal.balance}
+                    index={index}
+                  />
                 ))}
               </div>
             )
@@ -178,12 +170,71 @@ function MyNftsPage() {
           </div>
           <InfoCard title="Collection Stats" rows={[["ERC-721 NFTs", String(erc721Tokens.length)], ["ERC-1155 Types", String(erc1155Balances.length)], ["Total Items", String(totalCount)]]} />
           <div className="rounded-md border border-border bg-surface/90 p-4">
-            <h2 className="font-display text-base font-semibold">Actions</h2>
-            <SellDialogComponent label="List an NFT for Sale" variant="default" className="mt-3 w-full justify-start text-xs" />
-            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/create">Register Collection</Link></Button>
+            <h2 className="font-display text-base font-semibold">Quick Actions</h2>
+            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/create"><Plus className="size-4" />Register Collection</Link></Button>
           </div>
         </aside>
       </div>
     </AccountShell>
+  );
+}
+
+// ─── Token Card with per-token metadata + SellDialog ───────────────────────
+
+function TokenCard({
+  collectionId,
+  tokenId,
+  tokenStandard,
+  quantity,
+  index,
+}: {
+  collectionId: string;
+  tokenId: string;
+  tokenStandard: "ERC-721" | "ERC-1155";
+  quantity?: string;
+  index: number;
+}) {
+  const { imageUri, name, isLoading: metaLoading } = useTokenMetadata(
+    collectionId as `0x${string}`,
+    tokenId,
+  );
+  const resolvedImage = imageUri ? resolveImageUri(imageUri) : null;
+
+  return (
+    <div
+      className="card-hover animate-fade-in-up group relative overflow-hidden rounded-md border border-border bg-surface/90"
+      style={{ animationDelay: `${index * 0.04}s` }}
+    >
+      <Link to="/nfts/$id" params={{ id: `${collectionId}-${tokenId}` }} className="block">
+        <div className="relative aspect-square overflow-hidden bg-muted">
+          {resolvedImage ? (
+            <img
+              src={resolvedImage}
+              alt={name}
+              className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className={`size-full bg-muted ${metaLoading ? "animate-pulse" : ""}`} />
+          )}
+        </div>
+        <div className="p-2">
+          <p className="truncate font-display text-xs font-semibold">{name}</p>
+          <p className="truncate text-[10px] text-muted-foreground">{collectionId.slice(0, 8)}…</p>
+          {quantity && <p className="text-[10px] text-muted-foreground">Qty: {quantity}</p>}
+        </div>
+      </Link>
+      {/* Sell button — appears on hover */}
+      <div className="absolute inset-x-0 bottom-0 translate-y-full p-2 transition-transform duration-200 group-hover:translate-y-0">
+        <SellDialog
+          nftContract={collectionId as `0x${string}`}
+          tokenId={tokenId}
+          tokenStandard={tokenStandard}
+          label="List for Sale"
+          variant="default"
+          className="w-full text-[10px]"
+        />
+      </div>
+    </div>
   );
 }

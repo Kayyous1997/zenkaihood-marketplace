@@ -26,6 +26,7 @@ import { useOffer } from "@/hooks/useOffer";
 import { useAuction } from "@/hooks/useAuction";
 import { useSweep, useSweepTotal, type CartItem } from "@/hooks/useSweep";
 import { parseContractError } from "@/lib/contract-errors";
+import { txUrl } from "@/lib/basescan";
 import { formatEth, formatEthCompact, formatBps } from "@/lib/token-format";
 import { gqlClient } from "@/indexer/client";
 import {
@@ -64,8 +65,17 @@ function FeeRow({ label, value, sub, strong }: { label: string; value: string; s
   );
 }
 
-function TxStatus({ isPending, isConfirming, isSuccess }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean }) {
-  if (isSuccess) return <p className="rounded-md bg-success/10 p-2 text-center text-xs text-success">✓ Transaction confirmed!</p>;
+function TxStatus({ isPending, isConfirming, isSuccess, txHash }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean; txHash?: string }) {
+  if (isSuccess) return (
+    <p className="rounded-md bg-success/10 p-2 text-center text-xs text-success">
+      ✓ Transaction confirmed!{" "}
+      {txHash && (
+        <a href={txUrl(txHash)} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2 hover:opacity-80">
+          View on BaseScan ↗
+        </a>
+      )}
+    </p>
+  );
   if (isConfirming) return <p className="rounded-md bg-muted p-2 text-center text-xs text-muted-foreground animate-pulse">Waiting for confirmation…</p>;
   if (isPending) return <p className="rounded-md bg-muted p-2 text-center text-xs text-muted-foreground animate-pulse">Confirm in wallet…</p>;
   return null;
