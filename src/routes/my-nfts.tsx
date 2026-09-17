@@ -1,9 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Copy, ExternalLink, Grid2X2, List, PlusCircle, RefreshCw, Send } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, Copy, Grid2X2, List, Plus, RefreshCw, SellDialog } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { AccountShell, InfoCard, OwnedCard, PageHead, SelectBox, SellDialog, Tabs, Verified, owned, profile } from "@/components/zenkai";
+import { AccountShell, InfoCard, OwnedCard, PageHead, SelectBox, SellDialog as SellDialogComponent, Tabs, Verified } from "@/components/zenkai";
+import { useWallet } from "@/lib/wallet";
+import { gqlClient } from "@/indexer/client";
+import {
+  GET_TOKENS_BY_OWNER,
+  GET_ERC1155_BALANCES,
+  type TokensByOwnerResult,
+  type Erc1155BalancesResult,
+} from "@/indexer/queries";
+import { DEFAULT_REFETCH_MS } from "@/indexer/events";
 
 export const Route = createFileRoute("/my-nfts")({
   head: () => ({ meta: [
@@ -16,48 +26,161 @@ export const Route = createFileRoute("/my-nfts")({
   component: MyNftsPage,
 });
 
+const PAGE_SIZE = 24;
+
 function MyNftsPage() {
+  const { wallet } = useWallet();
   const [tab, setTab] = useState("Owned");
+  const [page, setPage] = useState(0);
+
+  const { data: erc721Data, isLoading: erc721Loading } = useQuery({
+    queryKey: ["owned-721", wallet, page],
+    queryFn: () =>
+      gqlClient.request<TokensByOwnerResult>(GET_TOKENS_BY_OWNER, {
+        owner: wallet as `0x${string}`,
+        first: PAGE_SIZE,
+        skip: page * PAGE_SIZE,
+      }),
+    enabled: !!wallet,
+    refetchInterval: DEFAULT_REFETCH_MS,
+  });
+
+  const { data: erc1155Data, isLoading: erc1155Loading } = useQuery({
+    queryKey: ["owned-1155", wallet, page],
+    queryFn: () =>
+      gqlClient.request<Erc1155BalancesResult>(GET_ERC1155_BALANCES, {
+        account: wallet as `0x${string}`,
+        first: PAGE_SIZE,
+        skip: page * PAGE_SIZE,
+      }),
+    enabled: !!wallet,
+    refetchInterval: DEFAULT_REFETCH_MS,
+  });
+
+  const erc721Tokens = erc721Data?.tokens ?? [];
+  const erc1155Balances = erc1155Data?.erc1155Balances ?? [];
+  const isLoading = erc721Loading || erc1155Loading;
+  const totalCount = erc721Tokens.length + erc1155Balances.length;
+
+  const addrShort = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "Not connected";
+
   return (
     <AccountShell>
       <PageHead title="My NFTs" description="Here are all the NFTs you own. View, manage, and list them on the marketplace." />
       <div className="page-section grid gap-5 xl:grid-cols-[1fr_260px]">
         <div className="min-w-0">
+          {/* Wallet header */}
           <section className="flex flex-col gap-5 rounded-md border border-border bg-surface/90 p-4 sm:flex-row sm:items-center">
-            <img src={profile.avatar} alt="Akeno avatar" width={1024} height={1024} className="size-20 rounded-full object-cover" />
+            <div className="flex size-20 items-center justify-center rounded-full bg-muted font-display text-2xl">
+              {wallet ? wallet.slice(2, 4).toUpperCase() : "?"}
+            </div>
             <div>
-              <h2 className="font-display text-2xl font-semibold">{profile.name} <Verified /></h2>
-              <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">{profile.address}<Copy className="size-3" /></p>
-              <span className="mt-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">Collector</span>
+              <h2 className="font-display text-2xl font-semibold">My NFTs</h2>
+              <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                {addrShort}
+                {wallet && (
+                  <button type="button" onClick={() => navigator.clipboard.writeText(wallet)} aria-label="Copy address">
+                    <Copy className="size-3" />
+                  </button>
+                )}
+              </p>
             </div>
             <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 sm:border-l sm:border-border sm:pl-5">
-              {profile.stats.map(([label, value]) => <div key={label}><b className="font-display text-lg">{value}</b><p className="text-[11px] text-muted-foreground">{label}</p></div>)}
+              <div><b className="font-display text-lg">{erc721Tokens.length}</b><p className="text-[11px] text-muted-foreground">ERC-721 NFTs</p></div>
+              <div><b className="font-display text-lg">{erc1155Balances.length}</b><p className="text-[11px] text-muted-foreground">ERC-1155 Types</p></div>
+              <div><b className="font-display text-lg">{totalCount}</b><p className="text-[11px] text-muted-foreground">Total Items</p></div>
             </div>
           </section>
 
-          <div className="mt-5"><Tabs items={[["Owned"], ["Created"], ["Listed"], ["Favorites"]]} value={tab} onChange={setTab} /></div>
+          <div className="mt-5"><Tabs items={[["Owned"], ["ERC-1155"]]} value={tab} onChange={setTab} /></div>
+
           <div className="mb-4 mt-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold">My NFTs <small className="font-body text-xs font-normal text-muted-foreground">(12)</small></h2>
-            <div className="flex items-center gap-2"><div className="w-44"><SelectBox placeholder="Sort by: Recently Added" items={["Recently Added", "Price: Low to High", "Price: High to Low"]} /></div><Button variant="outline" size="icon"><Grid2X2 /></Button><Button variant="outline" size="icon"><List /></Button></div>
+            <h2 className="font-display text-xl font-semibold">
+              {tab === "Owned" ? "ERC-721 Tokens" : "ERC-1155 Balances"}
+              {" "}<small className="font-body text-xs font-normal text-muted-foreground">({tab === "Owned" ? erc721Tokens.length : erc1155Balances.length})</small>
+            </h2>
+            <div className="flex items-center gap-2">
+              <div className="w-44"><SelectBox placeholder="Sort by: Recently Added" items={["Recently Added"]} /></div>
+              <Button variant="outline" size="icon" aria-label="Grid view"><Grid2X2 /></Button>
+              <Button variant="outline" size="icon" aria-label="List view"><List /></Button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">{owned.map((item, index) => <OwnedCard key={`${item.id}-${index}`} item={item} badge={tab === "Listed" ? "Listed" : "Owned"} index={index} />)}</div>
+
+          {!wallet ? (
+            <div className="flex min-h-60 flex-col items-center justify-center gap-3">
+              <p className="text-sm text-muted-foreground">Connect your wallet to see your NFTs.</p>
+            </div>
+          ) : isLoading ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+              {Array.from({ length: 12 }).map((_, i) => <div key={i} className="aspect-square animate-pulse rounded-md bg-muted" />)}
+            </div>
+          ) : tab === "Owned" ? (
+            erc721Tokens.length === 0 ? (
+              <p className="mt-8 text-center text-sm text-muted-foreground">No ERC-721 NFTs found for this wallet.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+                {erc721Tokens.map((token, index) => (
+                  <Link
+                    key={token.id}
+                    to="/nfts/$id"
+                    params={{ id: `${token.collection.id}-${token.tokenId}` }}
+                    className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="aspect-square bg-muted" />
+                    <div className="p-2">
+                      <p className="truncate font-display text-xs font-semibold">#{token.tokenId}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">{token.collection.id.slice(0, 8)}…</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )
+          ) : (
+            erc1155Balances.length === 0 ? (
+              <p className="mt-8 text-center text-sm text-muted-foreground">No ERC-1155 tokens found for this wallet.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+                {erc1155Balances.map((bal, index) => (
+                  <Link
+                    key={bal.id}
+                    to="/nfts/$id"
+                    params={{ id: `${bal.collection.id}-${bal.tokenId}` }}
+                    className="card-hover animate-fade-in-up overflow-hidden rounded-md border border-border bg-surface/90"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="aspect-square bg-muted" />
+                    <div className="p-2">
+                      <p className="truncate font-display text-xs font-semibold">#{bal.tokenId}</p>
+                      <p className="text-[10px] text-muted-foreground">Qty: {bal.balance}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* Pagination */}
+          {wallet && totalCount > 0 && (
+            <div className="mt-6 flex items-center justify-center gap-1">
+              <Button size="icon" variant="outline" className="size-8 text-xs" onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>←</Button>
+              <Button size="icon" variant="default" className="size-8 text-xs">{page + 1}</Button>
+              <Button size="icon" variant="outline" className="size-8 text-xs" onClick={() => setPage(page + 1)} disabled={totalCount < PAGE_SIZE}>→</Button>
+            </div>
+          )}
         </div>
 
         <aside className="space-y-3">
-          <div className="rounded-md border border-border bg-surface/90 p-4"><h2 className="font-display text-base font-semibold">Wallet Address</h2><p className="mt-3 flex items-center gap-2 text-xs">{profile.address}<Copy className="size-3.5 text-muted-foreground" /></p><p className="mt-2 text-[11px] text-muted-foreground"><span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5">ENS</span>Not set</p></div>
-          <InfoCard title="Collection Stats" rows={[["Total NFTs", "12"], ["Collections", "5"], ["Total Volume", "8.42 ETH"]]} />
           <div className="rounded-md border border-border bg-surface/90 p-4">
-            <h2 className="font-display text-base font-semibold">Quick Filters</h2>
-            <label className="field-label">Collections</label><SelectBox placeholder="All Collections" items={["All Collections", "The Ronin", "The Lotus", "Cyber Edo"]} />
-            <label className="field-label">Status</label><SelectBox placeholder="Owned" items={["Owned", "Listed", "Created"]} />
-            <Button variant="outline" className="mt-4 w-full text-xs"><RefreshCw />Clear Filters</Button>
+            <h2 className="font-display text-base font-semibold">Wallet Address</h2>
+            <p className="mt-3 flex items-center gap-2 text-xs">{addrShort}<Copy className="size-3.5 text-muted-foreground" /></p>
+            <p className="mt-2 text-[11px] text-muted-foreground"><span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5">ENS</span>Not set</p>
           </div>
+          <InfoCard title="Collection Stats" rows={[["ERC-721 NFTs", String(erc721Tokens.length)], ["ERC-1155 Types", String(erc1155Balances.length)], ["Total Items", String(totalCount)]]} />
           <div className="rounded-md border border-border bg-surface/90 p-4">
             <h2 className="font-display text-base font-semibold">Actions</h2>
-            <SellDialog label="List an NFT for Sale" variant="default" className="mt-3 w-full justify-start text-xs" />
-            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/collections/$slug" params={{ slug: "the-ronin" }}>View on Marketplace <ExternalLink className="ml-auto size-3.5" /></Link></Button>
-            <Button asChild variant="ghost" className="w-full justify-start text-xs"><Link to="/create"><PlusCircle />Register Collection</Link></Button>
-            <Button variant="ghost" className="w-full justify-start text-xs"><Send />Transfer NFT</Button>
+            <SellDialogComponent label="List an NFT for Sale" variant="default" className="mt-3 w-full justify-start text-xs" />
+            <Button asChild variant="ghost" className="mt-2 w-full justify-start text-xs"><Link to="/create">Register Collection</Link></Button>
           </div>
         </aside>
       </div>
