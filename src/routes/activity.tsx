@@ -4,14 +4,23 @@ import { ArrowRightLeft, ChevronRight, ClipboardList, Gavel, RefreshCw, Shopping
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { AccountShell, InfoCard, PageHead, SelectBox, Tabs } from "@/components/zenkai";
+import { InfoCard, PageHead, SelectBox, Shell, Tabs } from "@/components/zenkai";
 import { gqlClient } from "@/indexer/client";
 import {
   GET_GLOBAL_ACTIVITY,
+  GET_GLOBAL_ACTIVITY_BY_TYPE,
   type GlobalActivityResult,
   type ActivityFragment,
 } from "@/indexer/queries";
 import { DEFAULT_REFETCH_MS } from "@/indexer/events";
+import {
+  activityKind,
+  activityLabel,
+  BID_ACTIVITY_TYPES,
+  LISTING_ACTIVITY_TYPES,
+  SALE_ACTIVITY_TYPES,
+  TRANSFER_ACTIVITY_TYPES,
+} from "@/indexer/activity";
 import { formatEthCompact } from "@/lib/token-format";
 import { cn } from "@/lib/utils";
 
@@ -45,16 +54,17 @@ const tints: Record<string, string> = {
   Transfer: "bg-info/15 text-info",
 };
 
-const TAB_FILTERS: Record<string, string | null> = {
+const TAB_FILTERS: Record<string, readonly string[] | null> = {
   All: null,
-  Sales: "Sale",
-  Listings: "Listing",
-  Bids: "Bid",
-  Transfers: "Transfer",
+  Sales: SALE_ACTIVITY_TYPES,
+  Listings: LISTING_ACTIVITY_TYPES,
+  Bids: BID_ACTIVITY_TYPES,
+  Transfers: TRANSFER_ACTIVITY_TYPES,
 };
 
 function ActivityRow({ row }: { row: ActivityFragment }) {
-  const Icon = icons[row.type as keyof typeof icons] ?? Tag;
+  const kind = activityKind(row.type);
+  const Icon = icons[kind] ?? Tag;
   const price = row.listing?.pricePerItem ?? row.offer?.amount ?? row.auction?.highestBid ?? null;
   const payToken = row.listing?.paymentToken ?? row.offer?.paymentToken ?? row.auction?.paymentToken ?? null;
   const isEth = payToken === ETH_ADDRESS;
@@ -62,18 +72,18 @@ function ActivityRow({ row }: { row: ActivityFragment }) {
   return (
     <div className="grid items-center gap-3 border-b border-border p-2 last:border-0 sm:grid-cols-[130px_1fr_130px_auto]">
       <div className="flex items-center gap-2">
-        <span className={cn("grid size-9 shrink-0 place-content-center rounded-full text-xs", tints[row.type] ?? "bg-muted text-muted-foreground")}>
+        <span className={cn("grid size-9 shrink-0 place-content-center rounded-full text-xs", tints[kind] ?? "bg-muted text-muted-foreground")}>
           <Icon className="size-4" />
         </span>
         <span>
-          <b className="block text-xs">{row.type}</b>
+          <b className="block text-xs">{activityLabel(row.type)}</b>
           <small className="block text-[10px] text-muted-foreground">
             {new Date(Number(row.timestamp) * 1000).toLocaleDateString()}
           </small>
         </span>
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        <div className="size-10 shrink-0 rounded bg-muted" />
+        <div className="size-10 shrink-0 rounded bg-muted" aria-hidden="true" />
         <div className="min-w-0">
           <p className="truncate font-display text-xs font-semibold">
             {row.collection?.id
@@ -106,12 +116,12 @@ function ActivityPage() {
   const typeFilter = TAB_FILTERS[tab] ?? null;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["global-activity", page, typeFilter],
+    queryKey: ["global-activity", page, tab],
     queryFn: () =>
-      gqlClient.request<GlobalActivityResult>(GET_GLOBAL_ACTIVITY, {
+      gqlClient.request<GlobalActivityResult>(typeFilter ? GET_GLOBAL_ACTIVITY_BY_TYPE : GET_GLOBAL_ACTIVITY, {
         first: PAGE_SIZE,
         skip: page * PAGE_SIZE,
-        type: typeFilter,
+        ...(typeFilter ? { types: [...typeFilter] } : {}),
       }),
     refetchInterval: DEFAULT_REFETCH_MS,
   });
@@ -119,9 +129,16 @@ function ActivityPage() {
   const rows = data?.activities ?? [];
 
   return (
-    <AccountShell>
-      <PageHead eyebrow="Marketplace" title="Activity Feed" description="Live feed of all marketplace events — sales, listings, bids, and transfers." />
-      <div className="page-section grid gap-5 xl:grid-cols-[1fr_280px]">
+    <Shell>
+      <PageHead title="Activity" description="Track all marketplace activity, from listings and sales to transfers and mints. Everything that happens on-chain, in one place." />
+      <div className="page-section grid gap-5 xl:grid-cols-[160px_1fr_280px]">
+        <aside className="hidden overflow-hidden rounded-md border border-border bg-surface/90 sm:block">
+          {['All Activity', 'Sales', 'Listings', 'Offers', 'Transfers'].map((label, index) => (
+            <button key={label} type="button" onClick={() => { setTab(index === 0 ? 'All' : label); setPage(0); }} className={cn("flex w-full items-center justify-between border-b border-border px-3 py-3 text-left text-[11px] last:border-0", (index === 0 && tab === 'All') || tab === label ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+              <span>{label}</span><span className="rounded-full bg-background/70 px-2 py-0.5 text-[10px] text-foreground">{index === 0 ? rows.length : rows.filter((row) => row.type.toLowerCase() === label.slice(0, -1).toLowerCase()).length}</span>
+            </button>
+          ))}
+        </aside>
         <section className="min-w-0 rounded-md border border-border bg-surface/90">
           <div className="flex items-center justify-between border-b border-border px-4">
             <Tabs
@@ -169,13 +186,13 @@ function ActivityPage() {
             title="Live Stats"
             rows={[
               ["Total Events", String(rows.length)],
-              ["Sales", String(rows.filter((r) => r.type === "Sale").length)],
-              ["Listings", String(rows.filter((r) => r.type === "Listing").length)],
-              ["Bids", String(rows.filter((r) => r.type === "Bid").length)],
+              ["Sales", String(rows.filter((r) => activityKind(r.type) === "Sale").length)],
+              ["Listings", String(rows.filter((r) => activityKind(r.type) === "Listing").length)],
+              ["Bids", String(rows.filter((r) => activityKind(r.type) === "Bid").length)],
             ]}
           />
         </aside>
       </div>
-    </AccountShell>
+    </Shell>
   );
 }

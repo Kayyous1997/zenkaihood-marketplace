@@ -80,14 +80,14 @@ export function useRegistry() {
     royaltyRecipient: `0x${string}`,
     royaltyBps: number, // 0–1000
   ) {
-    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia.");
+    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia or Robinhood Testnet.");
     try {
       toast.loading("Submitting registration…", { id: "registry" });
       const txHash = await writeContractAsync({
         address: addrs.registry,
         abi: registryAbi,
         functionName: "registerCollection",
-        args: [nftContract, tokenStandard, royaltyRecipient, royaltyBps],
+        args: [nftContract, tokenStandard, royaltyRecipient, BigInt(royaltyBps)],
       });
       toast.loading("Waiting for confirmation…", { id: "registry" });
       return txHash;
@@ -98,7 +98,7 @@ export function useRegistry() {
   }
 
   async function setMetadataURI(nftContract: `0x${string}`, metadataURI: string) {
-    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia.");
+    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia or Robinhood Testnet.");
     try {
       toast.loading("Saving metadata…", { id: "metadata" });
       const txHash = await writeContractAsync({
@@ -120,14 +120,14 @@ export function useRegistry() {
     recipient: `0x${string}`,
     royaltyBps: number,
   ) {
-    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia.");
+    if (!addrs) throw new Error("Unsupported chain — switch to Base Sepolia or Robinhood Testnet.");
     try {
       toast.loading("Updating royalty…", { id: "royalty" });
       const txHash = await writeContractAsync({
         address: addrs.registry,
         abi: registryAbi,
         functionName: "setRoyalty",
-        args: [nftContract, recipient, royaltyBps],
+        args: [nftContract, recipient, BigInt(royaltyBps)],
       });
       toast.loading("Waiting for confirmation…", { id: "royalty" });
       return txHash;

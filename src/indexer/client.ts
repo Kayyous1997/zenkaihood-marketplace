@@ -11,7 +11,7 @@ import { GraphQLClient } from "graphql-request";
  */
 const SUBGRAPH_URL =
   (import.meta.env["VITE_SUBGRAPH_URL"] as string | undefined) ||
-  "https://api.studio.thegraph.com/query/REPLACE_ME/zenkaihood/v0.0.1";
+  "https://api.studio.thegraph.com/query/1760437/zenkaihood-1/0.0.1";
 
 /**
  * Shared GraphQL client for all subgraph queries.

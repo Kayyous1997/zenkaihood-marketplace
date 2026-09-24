@@ -1,3 +1,5 @@
+import { fetchIpfsFromGateways, ipfsPath, toIpfsProxyUrl } from "@/lib/ipfs";
+
 /** Structured NFT / collection metadata (ERC-721 Metadata JSON standard). */
 export interface NftMetadata {
   name?: string;
@@ -14,39 +16,45 @@ export interface NftMetadata {
   }>;
 }
 
-/** IPFS public gateways to try in order. */
-const IPFS_GATEWAYS = [
-  "https://ipfs.io/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
-];
-
 /**
- * Resolve an IPFS or HTTP URI to a fetchable HTTPS URL.
- * - ipfs://CID/... → gateway URL
- * - Relative CIDs (no scheme) → gateway URL
- * - http/https URIs pass through unchanged
+ * Resolve an IPFS or HTTP URI to a fetchable URL.
+ * IPFS content is loaded through `/api/ipfs/…` so the browser never hits
+ * public gateways (CORS / Cross-Origin-Resource-Policy 403s).
  */
-export function resolveUri(uri: string, gatewayIndex = 0): string {
-  const gateway = IPFS_GATEWAYS[gatewayIndex] ?? IPFS_GATEWAYS[0]!;
-
-  if (uri.startsWith("ipfs://")) {
-    return uri.replace("ipfs://", gateway);
-  }
-  // Bare CID (starts with "Qm" or "bafy")
-  if (uri.startsWith("Qm") || uri.startsWith("bafy")) {
-    return `${gateway}${uri}`;
-  }
-  return uri;
+export function resolveUri(uri: string): string {
+  return ipfsPath(uri) ? toIpfsProxyUrl(uri) : uri;
 }
 
-/**
- * Resolve an IPFS image URI for use in an <img> src attribute.
- * Falls back to the first gateway; callers may retry with a different index.
- */
+/** Resolve an IPFS image URI for use in an <img> src attribute. */
 export function resolveImageUri(uri: string | undefined): string | undefined {
   if (!uri) return undefined;
   return resolveUri(uri);
+}
+
+/** Resolve a collection metadata base URI for a specific token. */
+export function resolveTokenMetadataUri(baseUri: string, tokenId: string | number): string {
+  const uri = baseUri.trim();
+  const id = String(tokenId);
+  if (uri.includes("{id}")) return uri.replaceAll("{id}", id);
+  if (/\.json(?:\?.*)?$/i.test(uri)) return uri;
+  // Many collections store token files as `/<id>` (no extension). The IPFS
+  // proxy also tries `/<id>.json` when needed.
+  return `${uri.replace(/\/$/, "")}/${id}`;
+}
+
+/** Extracts an image URL from an inline JSON metadata data URI. */
+export function resolveMetadataImage(uri: string | undefined): string | undefined {
+  if (!uri) return undefined;
+  if (!uri.startsWith("data:application/json")) return resolveImageUri(uri);
+  try {
+    const payload = uri.split(",")[1];
+    if (!payload) return undefined;
+    const json = uri.includes(";base64,") ? atob(payload) : decodeURIComponent(payload);
+    const metadata = JSON.parse(json) as NftMetadata;
+    return resolveImageUri(metadata.image);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -59,7 +67,6 @@ export async function fetchMetadata(
 ): Promise<NftMetadata | null> {
   if (!uri) return null;
 
-  // data: URI (base64-encoded JSON — common in on-chain NFTs)
   if (uri.startsWith("data:application/json")) {
     try {
       const base64 = uri.split(",")[1];
@@ -70,21 +77,16 @@ export async function fetchMetadata(
     }
   }
 
-  // Try each IPFS gateway in order on failure
-  const urls =
-    uri.startsWith("ipfs://") || uri.startsWith("Qm") || uri.startsWith("bafy")
-      ? IPFS_GATEWAYS.map((_, i) => resolveUri(uri, i))
-      : [resolveUri(uri)];
-
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-      if (!res.ok) continue;
-      return (await res.json()) as NftMetadata;
-    } catch {
-      // Try next gateway
-    }
+  const path = ipfsPath(uri);
+  try {
+    // During SSR, fetch relative `/api/ipfs` URLs against public gateways directly.
+    const res =
+      path && typeof window === "undefined"
+        ? await fetchIpfsFromGateways(path)
+        : await fetch(resolveUri(uri), { signal: AbortSignal.timeout(60_000) });
+    if (!res?.ok) return null;
+    return (await res.json()) as NftMetadata;
+  } catch {
+    return null;
   }
-
-  return null;
 }

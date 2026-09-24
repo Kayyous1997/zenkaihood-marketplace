@@ -1,4 +1,4 @@
-﻿import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
+import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -39,6 +39,7 @@ import ronin from "@/assets/ronin.jpg";
 import sakura from "@/assets/sakura.jpg";
 import { Button } from "@/components/ui/button";
 import { useDisconnectWallet, useWallet } from "@/lib/wallet";
+import { useMarketplaceConfig } from "@/hooks/useMarketplaceConfig";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -57,6 +58,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { BASE_ICON_DATA_URL, ROBINHOOD_ICON_DATA_URL } from "@/components/chain-icons";
+import { Footer } from "@/components/footer";
+
+export { Footer } from "@/components/footer";
 
 export const art = { ronin, sakura, cyber, lotus, moon };
 
@@ -118,15 +123,10 @@ export const nfts = [
   { name: "Blood Oath", id: "#603", art: moon, collection: "The Ronin", price: "0.63 ETH", time: "1d ago", traits: ["Blood", "Warrior", "Moon"] },
 ];
 
-const nav = [
-  ["Explore", "/explore"],
-  ["Activity", "/activity"],
-] as const;
-
 export function Brand() {
   return (
     <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="Zenkaihood home">
-      <span className="font-jp text-[2rem] font-black leading-none text-primary">è”µ</span>
+      <span className="font-jp text-[2rem] font-black leading-none text-primary">蔵</span>
       <span className="font-display text-xl font-semibold text-foreground">Zenkaihood</span>
     </Link>
   );
@@ -135,14 +135,27 @@ export function Brand() {
 export function Header() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { connected, wallet } = useWallet();
+
+  const navItems = [
+    ["Explore", "/explore"],
+    ["Activity", "/activity"],
+    ...(connected && wallet ? [["My Account", "/profile"]] : []),
+  ];
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-8 px-4 sm:px-8 lg:px-14">
         <Brand />
         <nav className="hidden h-full items-center gap-8 md:flex">
-          {nav.map(([label, to]) => {
+          {navItems.map(([label, to]) => {
+            if (!to) return null;
             const active = path.startsWith(to.split("/").slice(0, 2).join("/"));
-            return <Link key={to} to={to} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>;
+            return to === "/explore" ? (
+              <Link key={to} to="/explore" search={{ q: undefined }} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
+            ) : (
+              <Link key={to} to={to as any} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
+            );
           })}
         </nav>
         <div className="ml-auto hidden items-center gap-3 lg:flex">
@@ -157,7 +170,14 @@ export function Header() {
         </Button>
       </div>
       <nav className={cn("grid overflow-hidden border-t border-border bg-background px-4 transition-all duration-250 ease-out md:hidden", mobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0")}>
-        {nav.map(([label, to]) => <Link key={to} to={to} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>)}
+        {navItems.map(([label, to]) => {
+          if (!to) return null;
+          return to === "/explore" ? (
+            <Link key={to} to="/explore" search={{ q: undefined }} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
+          ) : (
+            <Link key={to} to={to as any} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
+          );
+        })}
         <AccountNav className="mt-3" onNavigate={() => setMobileOpen(false)} />
       </nav>
     </header>
@@ -188,7 +208,7 @@ function ThemeToggle() {
   );
 }
 
-function AccountNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+function AccountNav({ className, onNavigate }: { className?: string | undefined; onNavigate?: (() => void) | undefined }) {
   return (
     <div className={cn("flex items-center", className)}>
       <ConnectButton.Custom>
@@ -205,7 +225,11 @@ function AccountNav({ className, onNavigate }: { className?: string; onNavigate?
           return (
             <div className="flex items-center gap-2">
               <Button variant="outline" className="hidden gap-2 sm:flex" onClick={openChainModal}>
-                {chain.hasIcon && chain.iconUrl && <img alt={chain.name ?? "Network"} src={chain.iconUrl} className="size-4 rounded-full" />}
+                <img
+                  alt={chain.name ?? "Network"}
+                  src={chain.iconUrl ?? (chain.name?.toLowerCase().includes("robinhood") ? ROBINHOOD_ICON_DATA_URL : BASE_ICON_DATA_URL)}
+                  className="size-4 rounded-full"
+                />
                 {chain.name}
               </Button>
               <Button className="gap-2" onClick={openAccountModal}>
@@ -242,7 +266,14 @@ function UnsupportedNetworkBanner() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen"><Header /><UnsupportedNetworkBanner />{children}</div>;
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <Header />
+      <UnsupportedNetworkBanner />
+      <div className="flex-1 w-full">{children}</div>
+      <Footer />
+    </div>
+  );
 }
 
 export function InkHero({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
@@ -258,7 +289,7 @@ export function InkHero({ children, compact = false }: { children: ReactNode; co
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="font-jp text-2xl font-black text-primary">è”µ</span>
+      <span className="font-jp text-2xl font-black text-primary">蔵</span>
       <h2 className="font-display text-2xl font-semibold">{children}</h2>
       <div className="h-px flex-1 bg-border" />
       {action}
@@ -266,7 +297,26 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   );
 }
 
-export function Verified() { return <BadgeCheck className="inline size-3.5 fill-info text-info" aria-label="Verified" />; }
+export function Verified({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-label="Verified"
+      className={cn("inline-block shrink-0 align-middle", className)}
+    >
+      {/* Twitter Blue Starburst Badge */}
+      <path
+        fill="#1D9BF0"
+        d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.67-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z"
+      />
+      {/* Crisp White Checkmark */}
+      <path
+        fill="#FFFFFF"
+        d="M10.54 16.2 6.8 12.46l1.41-1.42 2.26 2.26 4.8-5.23 1.47 1.36-6.2 6.77z"
+      />
+    </svg>
+  );
+}
 
 export function CollectionCard({ item, index = 0 }: { item: (typeof collections)[number]; index?: number }) {
   return (
@@ -308,9 +358,9 @@ export function NftCard({ item, compact = false, index = 0 }: { item: (typeof nf
   );
 }
 
-export function SelectBox({ placeholder, items, onSelect }: { placeholder: string; items: string[]; onSelect?: (value: string) => void }) {
+export function SelectBox({ placeholder, items, onSelect }: { placeholder: string; items: string[]; onSelect?: ((value: string) => void) | undefined }) {
   return (
-    <Select onValueChange={onSelect}>
+    <Select {...(onSelect ? { onValueChange: onSelect } : {})}>
       <SelectTrigger className="bg-surface text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
       <SelectContent>{items.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
     </Select>
@@ -344,21 +394,22 @@ export const featureIcons = [Gem, ShieldCheck, Users];
 export const utilityIcons = { Activity, CalendarDays, ExternalLink, Filter, Grid2X2, List, Search, Settings, Share2, SlidersHorizontal, Tag, WalletCards };
 
 export function PriceSummary({ price }: { price: number }) {
-  const fee = price * 0.025;
+  const { platformFeePercent, platformFeeFraction } = useMarketplaceConfig();
+  const fee = price * platformFeeFraction;
   const royalty = price * 0.05;
   const receive = price - fee - royalty;
   const money = (value: number) => `$${(value * 2854.64).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   return (
     <div className="rounded-md border border-border bg-surface/95 p-5">
       <h2 className="font-display text-lg font-semibold">Listing Summary</h2>
-      <div className="my-5 flex items-center gap-4"><img src={ronin} alt="The Ronin #042" width={1024} height={1024} className="size-20 rounded object-cover" /><div><h3 className="font-display font-semibold">The Ronin #042 <Verified /></h3><p className="text-xs text-muted-foreground">Sakura Origins ðŸŒ¸</p><p className="mt-1 text-xs text-muted-foreground">Token ID: #042</p></div></div>
+      <div className="my-5 flex items-center gap-4"><img src={ronin} alt="The Ronin #042" width={1024} height={1024} className="size-20 rounded object-cover" /><div><h3 className="font-display font-semibold">The Ronin #042 <Verified /></h3><p className="text-xs text-muted-foreground">Sakura Origins 🌸</p><p className="mt-1 text-xs text-muted-foreground">Token ID: #042</p></div></div>
       <div className="space-y-4 border-y border-border py-4 text-sm">
         <SummaryRow label="Your Price" value={`${price || 0} ETH`} sub={money(price || 0)} />
-        <SummaryRow label="Marketplace Fee (2.5%)" value={`${fee.toFixed(4)} ETH`} sub={money(fee)} />
+        <SummaryRow label={`Marketplace Fee (${platformFeePercent})`} value={`${fee.toFixed(4)} ETH`} sub={money(fee)} />
         <SummaryRow label="Creator Royalty (5%)" value={`${royalty.toFixed(3)} ETH`} sub={money(royalty)} />
       </div>
       <div className="mt-4"><SummaryRow label="You'll Receive" value={`${receive.toFixed(4)} ETH`} sub={money(receive)} strong /></div>
-      <p className="mt-5 text-[11px] leading-relaxed text-muted-foreground">â“˜ Royalty percentage is set by the collection creator and cannot be changed by the seller.</p>
+      <p className="mt-5 text-[11px] leading-relaxed text-muted-foreground">ⓘ Royalty percentage is set by the collection creator and cannot be changed by the seller.</p>
     </div>
   );
 }
@@ -380,8 +431,9 @@ export function ListingReview({ price }: { price: number }) {
 export function SellDialog({ itemName = "your NFT", defaultPrice = "1.0", label = "List for Sale", variant = "outline", className }: { itemName?: string; defaultPrice?: string; label?: string; variant?: "default" | "outline" | "ghost"; className?: string }) {
   const [priceText, setPriceText] = useState(defaultPrice);
   const [done, setDone] = useState(false);
+  const { platformFeePercent, platformFeeFraction } = useMarketplaceConfig();
   const price = Number(priceText.replace(/[^0-9.]/g, "")) || 0;
-  const fee = price * 0.025;
+  const fee = price * platformFeeFraction;
   const royalty = price * 0.05;
   const receive = price - fee - royalty;
   const money = (value: number) => `$${(value * 2854.64).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -391,7 +443,7 @@ export function SellDialog({ itemName = "your NFT", defaultPrice = "1.0", label 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">{done ? "Listing created" : `Sell ${itemName}`}</DialogTitle>
-          <DialogDescription>{done ? `${itemName} is now offered at ${price} ETH. This is a visual preview â€” no real transaction occurred.` : "Set your asking price. Your NFT stays in your wallet until it sells."}</DialogDescription>
+          <DialogDescription>{done ? `${itemName} is now offered at ${price} ETH. This is a visual preview — no real transaction occurred.` : "Set your asking price. Your NFT stays in your wallet until it sells."}</DialogDescription>
         </DialogHeader>
         {!done && (
           <div className="space-y-4">
@@ -399,16 +451,16 @@ export function SellDialog({ itemName = "your NFT", defaultPrice = "1.0", label 
               <label className="field-label mt-0" htmlFor="sell-price">Price</label>
               <div className="flex">
                 <input id="sell-price" value={priceText} onChange={(event) => setPriceText(event.target.value)} inputMode="decimal" className="control min-w-0 flex-1 rounded-r-none" />
-                <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">â—† ETH</span>
+                <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">◆ ETH</span>
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">â‰ˆ {money(price)} (estimated)</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">≈ {money(price)} (estimated)</p>
             </div>
             <div>
               <label className="field-label mt-0" htmlFor="sell-duration">Duration</label>
               <SelectBox placeholder="7 days" items={["1 day", "3 days", "7 days", "1 month", "No expiration"]} />
             </div>
             <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Marketplace Fee (2.5%)</span><b>{fee.toFixed(4)} ETH</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Marketplace Fee ({platformFeePercent})</span><b>{fee.toFixed(4)} ETH</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Creator Royalty (5%)</span><b>{royalty.toFixed(4)} ETH</b></div>
               <div className="flex justify-between border-t border-border pt-3"><span className="font-semibold">You&apos;ll Receive</span><b className="font-display text-base">{receive.toFixed(4)} ETH</b></div>
             </div>
@@ -462,7 +514,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
     return (
       <Shell>
         <div className="mx-auto grid min-h-[60vh] max-w-md place-content-center px-4 text-center">
-          <span className="mx-auto font-jp text-5xl font-black text-primary">è”µ</span>
+          <span className="mx-auto font-jp text-5xl font-black text-primary">蔵</span>
           <h1 className="mt-4 font-display text-3xl font-semibold">Connect your wallet</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Your profile, collectibles, listings and activity are available once a wallet is connected.</p>
           <div className="mt-6 flex justify-center"><WalletDialog /></div>

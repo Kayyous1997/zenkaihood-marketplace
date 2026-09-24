@@ -23,3 +23,8 @@ export const FAST_REFETCH_MS = 6_000;
  * 60 seconds is sufficient — no user action depends on this being instant.
  */
 export const SLOW_REFETCH_MS = 60_000;
+
+/** Unix seconds as a GraphQL BigInt string, for listing/offer time filters. */
+export function unixNowSeconds(): string {
+  return Math.floor(Date.now() / 1000).toString();
+}

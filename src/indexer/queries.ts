@@ -14,11 +14,12 @@
 
 /**
  * Fetch live platform config: fee bps, fee recipient, pause state.
- * Used on: Home page fee display, listing/buy dialogs.
+ * Used on: Home page fee display, listing/buy dialogs, footer.
  */
 export const GET_MARKETPLACE_CONFIG = `
   query GetMarketplaceConfig {
-    marketplaceConfig(id: "config") {
+    marketplaceConfigs(first: 1) {
+      id
       marketplace
       registry
       platformFeeBps
@@ -30,10 +31,20 @@ export const GET_MARKETPLACE_CONFIG = `
 `;
 
 export interface MarketplaceConfigResult {
-  marketplaceConfig: {
+  marketplaceConfigs?: Array<{
+    id: string;
     marketplace: string;
     registry: string;
-    platformFeeBps: number;
+    platformFeeBps: number | string;
+    feeRecipient: string;
+    paused: boolean;
+    registryPaused: boolean;
+  }>;
+  marketplaceConfig?: {
+    id?: string;
+    marketplace: string;
+    registry: string;
+    platformFeeBps: number | string;
     feeRecipient: string;
     paused: boolean;
     registryPaused: boolean;
@@ -81,13 +92,41 @@ export interface PaymentTokensResult {
  *   onlyVerified  — pass true to filter verified-only (optional, null = all)
  */
 export const GET_COLLECTIONS = `
-  query GetCollections($first: Int!, $skip: Int!, $onlyVerified: Boolean) {
+  query GetCollections($first: Int!, $skip: Int!) {
     collections(
       first: $first
       skip: $skip
       orderBy: registeredAt
       orderDirection: desc
-      where: { active: true, verified: $onlyVerified }
+      where: { active: true }
+    ) {
+      id
+      creator
+      tokenStandard
+      metadataURI
+      royaltyRecipient
+      royaltyBps
+      verified
+      active
+      listingCount
+      activeListingCount
+      offerCount
+      activeOfferCount
+      auctionCount
+      activeAuctionCount
+      registeredAt
+    }
+  }
+`;
+
+export const GET_VERIFIED_COLLECTIONS = `
+  query GetVerifiedCollections($first: Int!, $skip: Int!) {
+    collections(
+      first: $first
+      skip: $skip
+      orderBy: registeredAt
+      orderDirection: desc
+      where: { active: true, verified: true }
     ) {
       id
       creator
@@ -192,13 +231,13 @@ export interface ListingFragment {
  * Used on: Home recent NFTs section, /explore NFT grid.
  */
 export const GET_ACTIVE_LISTINGS = `
-  query GetActiveListings($first: Int!, $skip: Int!) {
+  query GetActiveListings($first: Int!, $skip: Int!, $now: BigInt!) {
     listings(
       first: $first
       skip: $skip
       orderBy: createdAtTimestamp
       orderDirection: desc
-      where: { active: true }
+      where: { active: true, cancelled: false, startTime_lte: $now, endTime_gt: $now }
     ) {
       id
       seller
@@ -235,16 +274,16 @@ export interface ActiveListingsResult {
  * Variables:
  *   collection — contract address (lowercase)
  *   first, skip — pagination
- *   onlyActive  — true = active only, false/omit = all
+ *   now — unix seconds; only buyable listings (started, not expired)
  */
 export const GET_LISTINGS_BY_COLLECTION = `
-  query GetListingsByCollection($collection: String!, $first: Int!, $skip: Int!, $onlyActive: Boolean) {
+  query GetListingsByCollection($collection: String!, $first: Int!, $skip: Int!, $now: BigInt!) {
     listings(
       first: $first
       skip: $skip
       orderBy: createdAtTimestamp
       orderDirection: desc
-      where: { collection: $collection, active: $onlyActive }
+      where: { collection: $collection, active: true, cancelled: false, startTime_lte: $now, endTime_gt: $now }
     ) {
       id
       seller
@@ -370,11 +409,11 @@ export interface OfferFragment {
  * Used on: /nfts/$id detail page offers table.
  */
 export const GET_OFFERS_FOR_ASSET = `
-  query GetOffersForAsset($collection: String!, $tokenId: BigInt!) {
+  query GetOffersForAsset($collection: String!, $tokenId: BigInt!, $now: BigInt!) {
     offers(
       orderBy: amount
       orderDirection: desc
-      where: { collection: $collection, tokenId: $tokenId, active: true }
+      where: { collection: $collection, tokenId: $tokenId, active: true, expiration_gt: $now }
     ) {
       id
       offerer
@@ -440,13 +479,13 @@ export interface OffersByUserResult {
  * Used on: /collections/$slug offers tab.
  */
 export const GET_OFFERS_BY_COLLECTION = `
-  query GetOffersByCollection($collection: String!, $first: Int!, $skip: Int!) {
+  query GetOffersByCollection($collection: String!, $first: Int!, $skip: Int!, $now: BigInt!) {
     offers(
       first: $first
       skip: $skip
       orderBy: amount
       orderDirection: desc
-      where: { collection: $collection, active: true }
+      where: { collection: $collection, active: true, expiration_gt: $now }
     ) {
       id
       offerer
@@ -461,6 +500,21 @@ export const GET_OFFERS_BY_COLLECTION = `
     }
   }
 `;
+
+export interface OffersByCollectionResult {
+  offers: Array<{
+    id: string;
+    offerer: string;
+    tokenId: string;
+    quantity: string;
+    paymentToken: string;
+    amount: string;
+    fundedAmount: string;
+    expiration: string;
+    active: boolean;
+    createdAtTimestamp: string;
+  }>;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auctions
@@ -572,6 +626,7 @@ export const GET_AUCTIONS_BY_SELLER = `
       where: { seller: $seller }
     ) {
       id
+      seller
       collection {
         id
         metadataURI
@@ -590,6 +645,10 @@ export const GET_AUCTIONS_BY_SELLER = `
     }
   }
 `;
+
+export interface AuctionsBySellerResult {
+  auctions: AuctionFragment[];
+}
 
 /**
  * All auctions for a specific NFT.
@@ -660,6 +719,80 @@ export interface AuctionBidsResult {
   bids: BidFragment[];
 }
 
+export interface UserBidFragment {
+  id: string;
+  auction: {
+    id: string;
+    seller: string;
+    collection: {
+      id: string;
+      metadataURI: string | null;
+      tokenStandard?: string;
+    };
+    tokenId: string;
+    quantity: string;
+    paymentToken: string;
+    reservePrice: string;
+    highestBid: string;
+    highestBidder: string | null;
+    startTime: string;
+    endTime: string;
+    active: boolean;
+  };
+  bidder: string;
+  amount: string;
+  fundedAmount: string | null;
+  blockNumber: string;
+  timestamp: string;
+  transactionHash: string;
+}
+
+/**
+ * All bids placed by a specific bidder across auctions.
+ * Used on: /profile and /my-activity.
+ */
+export const GET_BIDS_BY_BIDDER = `
+  query GetBidsByBidder($bidder: Bytes!, $first: Int!, $skip: Int!) {
+    bids(
+      first: $first
+      skip: $skip
+      orderBy: timestamp
+      orderDirection: desc
+      where: { bidder: $bidder }
+    ) {
+      id
+      auction {
+        id
+        seller
+        collection {
+          id
+          metadataURI
+          tokenStandard
+        }
+        tokenId
+        quantity
+        paymentToken
+        reservePrice
+        highestBid
+        highestBidder
+        startTime
+        endTime
+        active
+      }
+      bidder
+      amount
+      fundedAmount
+      blockNumber
+      timestamp
+      transactionHash
+    }
+  }
+`;
+
+export interface BidsByBidderResult {
+  bids: UserBidFragment[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sales
 // ─────────────────────────────────────────────────────────────────────────────
@@ -723,6 +856,24 @@ export interface SalesResult {
   sales: SaleFragment[];
 }
 
+export const GET_SALES_BY_COLLECTION = `
+  query GetSalesByCollection($collection: String!, $first: Int!) {
+    sales(
+      first: $first
+      skip: 0
+      orderBy: timestamp
+      orderDirection: desc
+      where: { collection: $collection }
+    ) {
+      id
+      price
+      paymentToken
+      timestamp
+      tokenId
+    }
+  }
+`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Activity
 // ─────────────────────────────────────────────────────────────────────────────
@@ -767,13 +918,36 @@ export interface ActivityFragment {
  *                 "Offer" | "Transfer" | "Mint" | null (all)
  */
 export const GET_GLOBAL_ACTIVITY = `
-  query GetGlobalActivity($first: Int!, $skip: Int!, $type: String) {
+  query GetGlobalActivity($first: Int!, $skip: Int!) {
     activities(
       first: $first
       skip: $skip
       orderBy: timestamp
       orderDirection: desc
-      where: { type: $type }
+    ) {
+      id
+      type
+      account
+      collection { id metadataURI }
+      tokenId
+      listing { id pricePerItem paymentToken active }
+      offer { id amount paymentToken active }
+      auction { id reservePrice highestBid paymentToken active }
+      blockNumber
+      timestamp
+      transactionHash
+    }
+  }
+`;
+
+export const GET_GLOBAL_ACTIVITY_BY_TYPE = `
+  query GetGlobalActivityByType($first: Int!, $skip: Int!, $types: [String!]!) {
+    activities(
+      first: $first
+      skip: $skip
+      orderBy: timestamp
+      orderDirection: desc
+      where: { type_in: $types }
     ) {
       id
       type
@@ -793,6 +967,30 @@ export const GET_GLOBAL_ACTIVITY = `
 export interface GlobalActivityResult {
   activities: ActivityFragment[];
 }
+
+export const GET_ACTIVITY_BY_COLLECTION = `
+  query GetActivityByCollection($collection: String!, $first: Int!) {
+    activities(
+      first: $first
+      skip: 0
+      orderBy: timestamp
+      orderDirection: desc
+      where: { collection: $collection }
+    ) {
+      id
+      type
+      account
+      collection { id metadataURI }
+      tokenId
+      listing { id pricePerItem paymentToken active }
+      offer { id amount paymentToken active }
+      auction { id reservePrice highestBid paymentToken active }
+      blockNumber
+      timestamp
+      transactionHash
+    }
+  }
+`;
 
 /**
  * Activity for a specific wallet address.

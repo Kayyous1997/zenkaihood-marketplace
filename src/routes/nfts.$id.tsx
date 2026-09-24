@@ -17,8 +17,10 @@ import {
   type ListingsForAssetResult,
   type OffersForAssetResult,
 } from "@/indexer/queries";
-import { DEFAULT_REFETCH_MS, SLOW_REFETCH_MS } from "@/indexer/events";
-import { fetchMetadata, resolveImageUri, type NftMetadata } from "@/lib/metadata";
+import { DEFAULT_REFETCH_MS, SLOW_REFETCH_MS, unixNowSeconds } from "@/indexer/events";
+import { IpfsImg } from "@/components/ipfs-img";
+import { fetchMetadata, resolveTokenMetadataUri, type NftMetadata } from "@/lib/metadata";
+import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 import { formatEthCompact, formatBps } from "@/lib/token-format";
 import { cn } from "@/lib/utils";
 
@@ -40,9 +42,9 @@ const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function NftDetailPage() {
   const { id } = Route.useParams();
-  const { wallet } = useWallet();
+  const { address } = useWallet();
   const [liked, setLiked] = useState(false);
-  const [metadata, setMetadata] = useState<NftMetadata | null>(null);
+  const [collectionMetadata, setCollectionMetadata] = useState<NftMetadata | null>(null);
 
   // id format: "{collectionAddress}-{tokenId}"
   const dashIdx = id.lastIndexOf("-");
@@ -73,6 +75,7 @@ function NftDetailPage() {
     queryFn: () => gqlClient.request<OffersForAssetResult>(GET_OFFERS_FOR_ASSET, {
       collection: collectionAddress,
       tokenId,
+      now: unixNowSeconds(),
     }),
     refetchInterval: DEFAULT_REFETCH_MS,
   });
@@ -81,21 +84,30 @@ function NftDetailPage() {
   const listings = listingsData?.listings ?? [];
   const offers = offersData?.offers ?? [];
 
-  // Find cheapest active listing
-  const activeListing = listings.find((l) => l.active);
+  const now = Math.floor(Date.now() / 1000);
+  const activeListing = listings.find(
+    (l) => l.active && !l.cancelled && Number(l.startTime) <= now && Number(l.endTime) > now,
+  );
+  const isEthListing = activeListing?.paymentToken === ETH_ADDRESS;
 
   // Resolve token metadata from collection metadataURI
+  const { metadata: onchainMetadata } = useTokenMetadata(
+    collectionAddress as `0x${string}`,
+    tokenId,
+  );
+
   useEffect(() => {
-    if (token?.collection.metadataURI) {
-      fetchMetadata(token.collection.metadataURI).then(setMetadata);
-    }
-  }, [token?.collection.metadataURI]);
+    if (onchainMetadata || !token?.collection.metadataURI) return;
+    fetchMetadata(resolveTokenMetadataUri(token.collection.metadataURI, tokenId)).then(setCollectionMetadata);
+  }, [onchainMetadata, token?.collection.metadataURI, tokenId]);
+
+  const metadata = onchainMetadata ?? collectionMetadata;
 
   const ownerShort = token?.owner
     ? `${token.owner.slice(0, 6)}…${token.owner.slice(-4)}`
     : "Unknown";
 
-  const isOwner = wallet && token?.owner?.toLowerCase() === wallet.toLowerCase();
+  const isOwner = !!address && !!token?.owner && token.owner.toLowerCase() === address.toLowerCase();
 
   if (tokenLoading) {
     return (
@@ -126,8 +138,8 @@ function NftDetailPage() {
           <div className="overflow-hidden rounded-md border border-border bg-surface/90 p-3 shadow-art">
             <div className="relative aspect-square overflow-hidden rounded-sm">
               {metadata?.image ? (
-                <img
-                  src={resolveImageUri(metadata.image) ?? ""}
+                <IpfsImg
+                  uri={metadata.image}
                   alt={metadata.name ?? `Token #${tokenId}`}
                   className="size-full object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

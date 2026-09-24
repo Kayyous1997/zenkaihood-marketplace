@@ -16,7 +16,8 @@ import {
 } from "@/indexer/queries";
 import { DEFAULT_REFETCH_MS } from "@/indexer/events";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
-import { resolveImageUri } from "@/lib/metadata";
+import { IpfsImg } from "@/components/ipfs-img";
+import { useOwnedTokenFallback, type FallbackToken } from "@/hooks/useOwnedTokenFallback";
 
 export const Route = createFileRoute("/my-nfts")({
   head: () => ({ meta: [
@@ -32,37 +33,39 @@ export const Route = createFileRoute("/my-nfts")({
 const PAGE_SIZE = 24;
 
 function MyNftsPage() {
-  const { wallet } = useWallet();
+  const { wallet, address } = useWallet();
   const [tab, setTab] = useState("Owned");
   const [page, setPage] = useState(0);
 
   const { data: erc721Data, isLoading: erc721Loading } = useQuery({
-    queryKey: ["owned-721", wallet, page],
+    queryKey: ["owned-721", address, page],
     queryFn: () =>
       gqlClient.request<TokensByOwnerResult>(GET_TOKENS_BY_OWNER, {
-        owner: wallet as `0x${string}`,
+        owner: address as `0x${string}`,
         first: PAGE_SIZE,
         skip: page * PAGE_SIZE,
       }),
-    enabled: !!wallet,
+    enabled: !!address,
     refetchInterval: DEFAULT_REFETCH_MS,
   });
 
   const { data: erc1155Data, isLoading: erc1155Loading } = useQuery({
-    queryKey: ["owned-1155", wallet, page],
+    queryKey: ["owned-1155", address, page],
     queryFn: () =>
       gqlClient.request<Erc1155BalancesResult>(GET_ERC1155_BALANCES, {
-        account: wallet as `0x${string}`,
+        account: address as `0x${string}`,
         first: PAGE_SIZE,
         skip: page * PAGE_SIZE,
       }),
-    enabled: !!wallet,
+    enabled: !!address,
     refetchInterval: DEFAULT_REFETCH_MS,
   });
 
-  const erc721Tokens = erc721Data?.tokens ?? [];
-  const erc1155Balances = erc1155Data?.erc1155Balances ?? [];
-  const isLoading = erc721Loading || erc1155Loading;
+  const { data: fallbackData, isLoading: fallbackLoading } = useOwnedTokenFallback(address as `0x${string}` | undefined);
+
+  const erc721Tokens = mergeTokens(erc721Data?.tokens ?? [], fallbackData?.erc721 ?? []);
+  const erc1155Balances = mergeTokens(erc1155Data?.erc1155Balances ?? [], fallbackData?.erc1155 ?? []);
+  const isLoading = erc721Loading || erc1155Loading || fallbackLoading;
   const totalCount = erc721Tokens.length + erc1155Balances.length;
 
   const addrShort = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "Not connected";
@@ -179,6 +182,13 @@ function MyNftsPage() {
   );
 }
 
+function mergeTokens<T extends { id: string }>(indexed: T[], fallback: FallbackToken[]) {
+  const merged = [...indexed] as Array<T | FallbackToken>;
+  const seen = new Set(indexed.map((token) => token.id));
+  fallback.forEach((token) => { if (!seen.has(token.id)) merged.push(token); });
+  return merged;
+}
+
 // ─── Token Card with per-token metadata + SellDialog ───────────────────────
 
 function TokenCard({
@@ -191,15 +201,14 @@ function TokenCard({
   collectionId: string;
   tokenId: string;
   tokenStandard: "ERC-721" | "ERC-1155";
-  quantity?: string;
+  quantity?: string | undefined;
   index: number;
 }) {
   const { imageUri, name, isLoading: metaLoading } = useTokenMetadata(
     collectionId as `0x${string}`,
     tokenId,
+    tokenStandard,
   );
-  const resolvedImage = imageUri ? resolveImageUri(imageUri) : null;
-
   return (
     <div
       className="card-hover animate-fade-in-up group relative overflow-hidden rounded-md border border-border bg-surface/90"
@@ -207,9 +216,9 @@ function TokenCard({
     >
       <Link to="/nfts/$id" params={{ id: `${collectionId}-${tokenId}` }} className="block">
         <div className="relative aspect-square overflow-hidden bg-muted">
-          {resolvedImage ? (
-            <img
-              src={resolvedImage}
+          {imageUri ? (
+            <IpfsImg
+              uri={imageUri}
               alt={name}
               className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

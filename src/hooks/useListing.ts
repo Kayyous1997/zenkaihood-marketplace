@@ -75,11 +75,35 @@ export function useIsApproved1155(
  *  - pricePerItem > 0n
  *  - quantity must be 1n for ERC-721
  *  - paymentToken = "0x0000...0000" for ETH, or a supported ERC-20 address
+ *
+ * Two separate useWriteContract instances are used so that approval and listing
+ * states (isPending, isConfirming, isSuccess) are fully independent and can be
+ * surfaced individually in the UI.
  */
 export function useListing() {
   const addrs = useAddresses();
-  const { writeContractAsync, data: hash, isPending, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  // ── Approval write ────────────────────────────────────────────────────────
+  const {
+    writeContractAsync: writeApprovalAsync,
+    data: approveHash,
+    isPending: approvePending,
+    reset: resetApprove,
+  } = useWriteContract();
+  const { isLoading: approveConfirming, isSuccess: approveSuccess } =
+    useWaitForTransactionReceipt({ hash: approveHash });
+
+  // ── Listing write ─────────────────────────────────────────────────────────
+  const {
+    writeContractAsync: writeListingAsync,
+    data: listingHash,
+    isPending: listingPending,
+    reset: resetListing,
+  } = useWriteContract();
+  const { isLoading: listingConfirming, isSuccess: listingSuccess } =
+    useWaitForTransactionReceipt({ hash: listingHash });
+
+  // ── Approval helpers ──────────────────────────────────────────────────────
 
   /** Grant marketplace setApprovalForAll on an ERC-721 or ERC-1155 contract. */
   async function approveAll(nftContract: `0x${string}`, isErc1155 = false) {
@@ -87,7 +111,7 @@ export function useListing() {
     try {
       toast.loading("Approving marketplace…", { id: "approve" });
       const abi = isErc1155 ? erc1155Abi : erc721Abi;
-      const txHash = await writeContractAsync({
+      const txHash = await writeApprovalAsync({
         address: nftContract,
         abi,
         functionName: "setApprovalForAll",
@@ -106,7 +130,7 @@ export function useListing() {
     if (!addrs) throw new Error("Unsupported chain.");
     try {
       toast.loading("Approving token…", { id: "approve" });
-      const txHash = await writeContractAsync({
+      const txHash = await writeApprovalAsync({
         address: nftContract,
         abi: erc721Abi,
         functionName: "approve",
@@ -119,6 +143,8 @@ export function useListing() {
       throw err;
     }
   }
+
+  // ── Listing helpers ───────────────────────────────────────────────────────
 
   /**
    * Create a fixed-price listing on the Marketplace.
@@ -143,7 +169,7 @@ export function useListing() {
     if (!addrs) throw new Error("Unsupported chain.");
     try {
       toast.loading("Creating listing…", { id: "listing" });
-      const txHash = await writeContractAsync({
+      const txHash = await writeListingAsync({
         address: addrs.marketplace,
         abi: marketplaceAbi,
         functionName: "createListing",
@@ -162,7 +188,7 @@ export function useListing() {
     if (!addrs) throw new Error("Unsupported chain.");
     try {
       toast.loading("Cancelling listing…", { id: "cancel-listing" });
-      const txHash = await writeContractAsync({
+      const txHash = await writeListingAsync({
         address: addrs.marketplace,
         abi: marketplaceAbi,
         functionName: "cancelListing",
@@ -176,15 +202,28 @@ export function useListing() {
     }
   }
 
+  function reset() {
+    resetApprove();
+    resetListing();
+  }
+
   return {
+    // Approval actions
     approveAll,
     approve721,
+    // Approval state
+    approvePending,
+    approveConfirming,
+    approveSuccess,
+    // Listing actions
     createListing,
     cancelListing,
-    hash,
-    isPending,
-    isConfirming,
-    isSuccess,
+    // Listing state
+    listingHash,
+    listingPending,
+    listingConfirming,
+    listingSuccess,
+    // Combined reset
     reset,
   };
 }

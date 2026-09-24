@@ -1,4 +1,15 @@
-import { formatEther, formatUnits } from "viem";
+import { formatEther, formatUnits, parseEther } from "viem";
+
+/** Parse an ETH decimal string to wei. Returns 0n when the input is empty or invalid. */
+export function parseEthInput(text: string): bigint {
+  const trimmed = text.trim();
+  if (!trimmed) return 0n;
+  try {
+    return parseEther(trimmed);
+  } catch {
+    return 0n;
+  }
+}
 
 /**
  * Format a raw bigint token amount to a human-readable string.
@@ -48,8 +59,9 @@ export function formatUsd(wei: bigint, ethUsd: number): string {
 }
 
 /**
- * Format basis points (e.g. 250) as a percentage string (e.g. "2.5%").
+ * Format basis points (e.g. 250 or 250n) as a percentage string (e.g. "2.5%").
  */
-export function formatBps(bps: number): string {
-  return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
+export function formatBps(bps: number | bigint): string {
+  const n = typeof bps === "bigint" ? Number(bps) : bps;
+  return `${(n / 100).toFixed(n % 100 === 0 ? 0 : 1)}%`;
 }

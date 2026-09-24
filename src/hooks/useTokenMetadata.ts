@@ -24,6 +24,7 @@ const erc721WithTokenUri = [
 export function useTokenMetadata(
   contractAddress: `0x${string}` | undefined,
   tokenId: string | number | undefined,
+  tokenStandard: "ERC-721" | "ERC-1155" = "ERC-721",
 ) {
   const tokenIdBig = tokenId !== undefined ? BigInt(String(tokenId)) : undefined;
 
@@ -36,16 +37,25 @@ export function useTokenMetadata(
     query: { enabled: !!contractAddress && tokenIdBig !== undefined },
   });
 
+  const { data: erc1155Uri } = useReadContract({
+    address: tokenStandard === "ERC-1155" ? contractAddress : undefined,
+    abi: [{ type: "function", name: "uri", inputs: [{ name: "id", type: "uint256" }], outputs: [{ name: "", type: "string" }], stateMutability: "view" }] as const,
+    functionName: "uri",
+    args: tokenIdBig !== undefined ? [tokenIdBig] : undefined,
+    query: { enabled: tokenStandard === "ERC-1155" && !!contractAddress && tokenIdBig !== undefined },
+  });
+  const resolvedTokenUri = tokenStandard === "ERC-1155" ? erc1155Uri : tokenUri;
+
   // Step 2: fetch metadata JSON from the URI
   const { data: metadata, isLoading } = useQuery<NftMetadata | null>({
-    queryKey: ["token-meta", contractAddress, String(tokenId), tokenUri],
-    queryFn: () => (tokenUri ? fetchMetadata(tokenUri) : Promise.resolve(null)),
-    enabled: !!tokenUri,
+    queryKey: ["token-meta", contractAddress, String(tokenId), resolvedTokenUri],
+    queryFn: () => (resolvedTokenUri ? fetchMetadata(resolvedTokenUri) : Promise.resolve(null)),
+    enabled: !!resolvedTokenUri,
     staleTime: 1000 * 60 * 60, // 1 hour — metadata rarely changes
   });
 
   return {
-    tokenUri,
+    tokenUri: resolvedTokenUri,
     metadata,
     isLoading,
     name: metadata?.name ?? `#${tokenId}`,

@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { useState, useEffect } from "react";
 import type { Session } from "@supabase/supabase-js";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
+const SUPABASE_URL = import.meta.env["VITE_SUPABASE_URL"] ?? "";
+const SUPABASE_ANON_KEY = import.meta.env["VITE_SUPABASE_ANON_KEY"] ?? "";
 
 /** Shared Supabase client. Returns null if env vars are not configured yet. */
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
@@ -86,8 +86,8 @@ export async function uploadCollectionImage(
   file: File,
 ): Promise<string> {
   if (!supabase) throw new Error("Supabase not configured.");
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${contractAddress.toLowerCase()}/${slot}.${ext}`;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const path = `${contractAddress.toLowerCase()}/${slot}_${Date.now()}.${ext}`;
   const { error } = await supabase.storage
     .from("collection-images")
     .upload(path, file, { upsert: true, contentType: file.type });

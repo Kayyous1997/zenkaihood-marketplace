@@ -2,8 +2,7 @@
  * Phase 5 — Action Dialogs
  * All buy/offer/sell/bid/auction/sweep flows connected to real contract hooks.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight, Gavel, RefreshCw, ShoppingCart, Tag, WalletCards, X,
 } from "lucide-react";
@@ -19,24 +18,17 @@ import {
 } from "@/components/ui/select";
 import { useWallet } from "@/lib/wallet";
 import { useAddresses } from "@/lib/deployments";
-import { useListing } from "@/hooks/useListing";
+import { useListing, useIsApproved721, useIsApproved1155 } from "@/hooks/useListing";
 import { useListingQuote, useSaleQuote } from "@/hooks/useListingQuote";
 import { usePurchase } from "@/hooks/usePurchase";
 import { useOffer } from "@/hooks/useOffer";
-import { useAuction } from "@/hooks/useAuction";
+import { useAuction, useMinimumBid } from "@/hooks/useAuction";
 import { useSweep, useSweepTotal, type CartItem } from "@/hooks/useSweep";
 import { parseContractError } from "@/lib/contract-errors";
 import { txUrl } from "@/lib/basescan";
-import { formatEth, formatEthCompact, formatBps } from "@/lib/token-format";
-import { gqlClient } from "@/indexer/client";
-import {
-  GET_TOKENS_BY_OWNER,
-  GET_MARKETPLACE_CONFIG,
-  type TokensByOwnerResult,
-  type MarketplaceConfigResult,
-} from "@/indexer/queries";
-import { SLOW_REFETCH_MS } from "@/indexer/events";
+import { formatEth, formatEthCompact, formatBps, parseEthInput } from "@/lib/token-format";
 import { cn } from "@/lib/utils";
+import { useMarketplaceConfig } from "@/hooks/useMarketplaceConfig";
 
 const ETH_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
@@ -65,7 +57,7 @@ function FeeRow({ label, value, sub, strong }: { label: string; value: string; s
   );
 }
 
-function TxStatus({ isPending, isConfirming, isSuccess, txHash }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean; txHash?: string }) {
+function TxStatus({ isPending, isConfirming, isSuccess, txHash }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean; txHash?: string | undefined }) {
   if (isSuccess) return (
     <p className="rounded-md bg-success/10 p-2 text-center text-xs text-success">
       ✓ Transaction confirmed!{" "}
@@ -98,6 +90,7 @@ export function BuyDialog({ listingId, pricePerItem, quantity = 1n, paymentToken
   const [open, setOpen] = useState(false);
   const { wallet } = useWallet();
   const addresses = useAddresses();
+  const { platformFeePercent } = useMarketplaceConfig();
 
   const isEth = paymentToken === ETH_ADDRESS;
   const { data: quote, isLoading: quoteLoading } = useListingQuote(listingId, quantity);
@@ -112,14 +105,18 @@ export function BuyDialog({ listingId, pricePerItem, quantity = 1n, paymentToken
       return;
     }
     try {
+      const quotedTotal = (quote as { buyerTotal: bigint } | undefined)?.buyerTotal;
+      if (!quotedTotal) {
+        toast.error("Price quote is still loading. Try again in a moment.");
+        return;
+      }
       if (isEth) {
-        const buyerTotal = (quote as { buyerTotal: bigint } | null)?.buyerTotal ?? pricePerItem * quantity;
-        await buy(listingId, quantity, buyerTotal);
+        await buy(listingId, quantity, quotedTotal);
       } else {
         if (needsApproval) {
-          await approveErc20(paymentToken as `0x${string}`, pricePerItem * quantity, addresses.marketplace);
+          await approveErc20(paymentToken as `0x${string}`, quotedTotal);
           setNeedsApproval(false);
-          return; // user needs to click again after approving
+          return;
         }
         await buyERC20(listingId, quantity);
       }
@@ -150,7 +147,7 @@ export function BuyDialog({ listingId, pricePerItem, quantity = 1n, paymentToken
 
         <div className="space-y-3 rounded-md border border-border bg-surface/90 p-4 text-sm">
           <FeeRow label="Item Price" value={formatEth(pricePerItem)} />
-          {platformFee != null && <FeeRow label="Platform Fee" value={formatEth(platformFee)} />}
+          {platformFee != null && <FeeRow label={`Platform Fee (${platformFeePercent})`} value={formatEth(platformFee)} />}
           {royalty != null && royalty > 0n && <FeeRow label="Creator Royalty" value={formatEth(royalty)} />}
           <div className="border-t border-border pt-3">
             <FeeRow
@@ -198,6 +195,8 @@ export interface SellDialogProps {
   label?: string;
   variant?: "default" | "outline" | "ghost";
   className?: string;
+  defaultPrice?: string;
+  existingListingId?: string;
 }
 
 export function SellDialog({
@@ -208,28 +207,99 @@ export function SellDialog({
   label = "List for Sale",
   variant = "outline",
   className,
+  defaultPrice = "0.1",
+  existingListingId,
 }: SellDialogProps) {
   const [open, setOpen] = useState(false);
-  const [priceText, setPriceText] = useState("0.1");
+  const [priceText, setPriceText] = useState(defaultPrice);
+  const [quantityText, setQuantityText] = useState("1");
   const [duration, setDuration] = useState(604800); // 7 days default
-  const { wallet } = useWallet();
+  // "idle" | "approving" | "listing" — drives step-aware status messages
+  const [step, setStep] = useState<"idle" | "approving" | "listing">("idle");
+  const { wallet, address } = useWallet();
   const addresses = useAddresses();
+  const { platformFeePercent } = useMarketplaceConfig();
 
-  const { approveAll, approve721, createListing, isApproved721, isApproved1155, isPending, isConfirming, isSuccess } = useListing();
+  const {
+    approveAll,
+    approve721,
+    createListing,
+    approvePending,
+    approveConfirming,
+    approveSuccess,
+    listingPending,
+    listingConfirming,
+    listingSuccess,
+    listingHash,
+    cancelListing,
+  } = useListing();
 
-  const priceEth = parseFloat(priceText) || 0;
-  const priceWei = BigInt(Math.round(priceEth * 1e18));
-  const endTime = BigInt(Math.floor(Date.now() / 1000) + duration);
+  const priceWei = parseEthInput(priceText);
+  // Show an inline error when user has typed something but it parses to zero
+  const priceInvalid = priceText.trim() !== "" && priceWei === 0n;
 
   const isERC721 = tokenStandard === "ERC-721";
+  // ERC-1155 sellers can specify how many editions to list; ERC-721 is always 1
+  const quantity = isERC721
+    ? 1n
+    : BigInt(Math.max(1, parseInt(quantityText, 10) || 1));
+
+  const isApproved721 = useIsApproved721(
+    isERC721 ? nftContract : undefined,
+    isERC721 ? BigInt(tokenId) : undefined,
+    address as `0x${string}` | undefined,
+  );
+  const isApproved1155 = useIsApproved1155(
+    !isERC721 ? nftContract : undefined,
+    !isERC721 ? address as `0x${string}` : undefined,
+  );
   const isApproved = isERC721 ? isApproved721 : isApproved1155;
 
-  // Live sale quote (platform fee + royalty preview)
-  const { data: saleQuote } = useSaleQuote(nftContract, tokenId, priceWei);
+  const { data: saleQuote } = useSaleQuote(nftContract, BigInt(tokenId), priceWei > 0n ? priceWei : undefined);
 
-  const platformFee = priceEth * 0.025;
-  const royaltyAmt = priceEth * (royaltyBps / 10000);
-  const sellerReceives = priceEth - platformFee - royaltyAmt;
+  const quoted = saleQuote as
+    | { platformFee: bigint; royaltyAmount: bigint; sellerProceeds: bigint; buyerTotal: bigint }
+    | undefined;
+
+  /** Submit the createListing TX with a freshly-computed endTime. */
+  async function submitListing() {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const freshEndTime = now + BigInt(duration);
+    setStep("listing");
+    if (existingListingId) {
+      try {
+        await cancelListing(BigInt(existingListingId));
+      } catch (err) {
+        console.warn("Cancelling active listing before updating price:", err);
+      }
+    }
+    await createListing(
+      nftContract,
+      BigInt(tokenId),
+      quantity,
+      ETH_ADDRESS,
+      priceWei,
+      now,
+      freshEndTime,
+    );
+    toast.success(existingListingId ? "Listing price updated!" : "Listing created!", { id: "sell" });
+    setOpen(false);
+    setStep("idle");
+  }
+
+  /**
+   * Once the approval TX confirms on-chain, automatically advance to the
+   * createListing TX — no second click needed.
+   */
+  useEffect(() => {
+    if (approveSuccess && step === "approving") {
+      submitListing().catch((err) => {
+        toast.error(parseContractError(err), { id: "sell" });
+        setStep("idle");
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approveSuccess]);
 
   async function handleList() {
     if (!wallet || !addresses) {
@@ -237,51 +307,62 @@ export function SellDialog({
       return;
     }
     try {
-      // Step 1: approve if needed
       if (!isApproved) {
+        // Step 1: approval — auto-continuation fires via the useEffect above
+        setStep("approving");
         if (isERC721) {
-          await approve721(nftContract, BigInt(tokenId), addresses.marketplace);
+          await approve721(nftContract, BigInt(tokenId));
         } else {
-          await approveAll(nftContract, addresses.marketplace, true);
+          await approveAll(nftContract, true);
         }
-        return; // User must click again after approval
+        return;
       }
-      // Step 2: create listing
-      await createListing(
-        nftContract,
-        BigInt(tokenId),
-        isERC721 ? 0 : 1,
-        priceWei,
-        1n,          // quantity (1 for ERC721; can expose UI for ERC1155)
-        ETH_ADDRESS, // payment token
-        endTime,
-      );
-      toast.success("Listing created!", { id: "sell" });
-      setOpen(false);
+      // Already approved — go straight to listing
+      await submitListing();
     } catch (err) {
       toast.error(parseContractError(err), { id: "sell" });
+      setStep("idle");
     }
   }
 
+  const anyPending = approvePending || approveConfirming || listingPending || listingConfirming;
+
+  // Step-aware status message shown while a TX is in flight
+  const stepMessage =
+    step === "approving"
+      ? approvePending
+        ? "Confirm approval in wallet…"
+        : approveConfirming
+        ? "Waiting for approval confirmation…"
+        : null
+      : step === "listing"
+      ? listingPending
+        ? "Confirm listing in wallet…"
+        : listingConfirming
+        ? "Waiting for listing confirmation…"
+        : null
+      : null;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setStep("idle"); }}>
       <DialogTrigger asChild>
         <Button variant={variant} className={cn("press", className)}><Tag />{label}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">
-            {isSuccess ? "Listing Created ✓" : `Sell Token #${tokenId}`}
+            {listingSuccess ? "Listing Created ✓" : `Sell Token #${tokenId}`}
           </DialogTitle>
           <DialogDescription>
-            {isSuccess
+            {listingSuccess
               ? "Your NFT is now listed on the marketplace."
               : "Set your price. Your NFT stays in your wallet until it sells."}
           </DialogDescription>
         </DialogHeader>
 
-        {!isSuccess && (
+        {!listingSuccess && (
           <div className="space-y-4">
+            {/* Price input with inline validation */}
             <div>
               <label className="field-label mt-0" htmlFor="sell-price">Price</label>
               <div className="flex">
@@ -290,13 +371,36 @@ export function SellDialog({
                   value={priceText}
                   onChange={(e) => setPriceText(e.target.value)}
                   inputMode="decimal"
-                  className="control min-w-0 flex-1 rounded-r-none"
+                  className={cn(
+                    "control min-w-0 flex-1 rounded-r-none",
+                    priceInvalid && "border-destructive focus-visible:ring-destructive",
+                  )}
                   placeholder="0.1"
                 />
                 <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">◆ ETH</span>
               </div>
+              {priceInvalid && (
+                <p className="mt-1 text-[11px] text-destructive">Enter a valid price.</p>
+              )}
             </div>
 
+            {/* ERC-1155 quantity input */}
+            {!isERC721 && (
+              <div>
+                <label className="field-label mt-0" htmlFor="sell-quantity">Quantity</label>
+                <input
+                  id="sell-quantity"
+                  value={quantityText}
+                  onChange={(e) => setQuantityText(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  className="control w-full"
+                  placeholder="1"
+                  min={1}
+                />
+              </div>
+            )}
+
+            {/* Duration */}
             <div>
               <label className="field-label mt-0">Duration</label>
               <Select onValueChange={(v) => setDuration(Number(v))} defaultValue="604800">
@@ -309,39 +413,62 @@ export function SellDialog({
               </Select>
             </div>
 
+            {/* Fee breakdown */}
             <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <FeeRow label="Platform Fee (2.5%)" value={`${platformFee.toFixed(4)} ETH`} />
+              <FeeRow label={`Platform Fee (${platformFeePercent})`} value={quoted ? formatEth(quoted.platformFee) : "—"} />
               <FeeRow
                 label={`Creator Royalty (${formatBps(royaltyBps)})`}
-                value={`${royaltyAmt.toFixed(4)} ETH`}
+                value={quoted ? formatEth(quoted.royaltyAmount) : "—"}
               />
               <div className="border-t border-border pt-3">
-                <FeeRow label="You'll Receive" value={`${sellerReceives.toFixed(4)} ETH`} strong />
+                <FeeRow
+                  label="You'll Receive"
+                  value={quoted ? formatEth(quoted.sellerProceeds) : "—"}
+                  strong
+                />
               </div>
+              {quoted && (
+                <p className="text-[11px] text-muted-foreground">
+                  Buyer pays {formatEth(quoted.buyerTotal)} (price + fees + royalty).
+                </p>
+              )}
             </div>
 
-            {!isApproved && (
+            {/* Approval hint — only shown before approval begins */}
+            {!isApproved && step === "idle" && (
               <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-                ⓘ You'll first be asked to approve the marketplace to transfer your NFT.
+                ⓘ You'll first be asked to approve the marketplace to transfer your NFT. It will then list automatically.
               </p>
             )}
           </div>
         )}
 
-        <TxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess} />
+        {/* Step-aware in-flight status; falls back to the listing TX confirmation */}
+        {stepMessage ? (
+          <p className="rounded-md bg-muted p-2 text-center text-xs text-muted-foreground animate-pulse">
+            {stepMessage}
+          </p>
+        ) : (
+          <TxStatus
+            isPending={listingPending}
+            isConfirming={listingConfirming}
+            isSuccess={listingSuccess}
+            txHash={listingHash}
+          />
+        )}
 
         <DialogFooter>
-          {isSuccess ? (
+          {listingSuccess ? (
             <Button variant="outline" onClick={() => setOpen(false)}>Done</Button>
           ) : (
             <Button
               onClick={handleList}
-              disabled={!wallet || priceEth <= 0 || isPending || isConfirming}
+              disabled={!wallet || priceWei <= 0n || priceInvalid || anyPending}
             >
               {!wallet ? "Connect Wallet" :
-                !isApproved ? "Approve NFT Transfer" :
-                isPending ? "Confirm in wallet…" :
-                isConfirming ? "Processing…" :
+                step === "approving" ? "Approving…" :
+                step === "listing" ? "Listing…" :
+                !isApproved ? "Approve & List" :
                 "Create Listing"}
               <ArrowRight />
             </Button>
@@ -379,16 +506,25 @@ export function OfferDialog({
   const { wallet } = useWallet();
   const addresses = useAddresses();
 
-  const { createOffer, approveErc20, isPending, isConfirming, isSuccess } = useOffer();
+  const { createOffer, isPending, isConfirming, isSuccess } = useOffer();
 
-  const amountEth = parseFloat(amountText) || 0;
-  const amountWei = BigInt(Math.round(amountEth * 1e18));
+  const amountWei = parseEthInput(amountText);
   const deadline = BigInt(Math.floor(Date.now() / 1000) + duration);
-  const quantity = tokenStandard === "ERC-721" ? 1n : 1n;
+  const quantity = tokenStandard === "ERC-1155" ? 1n : 1n;
+  const { data: offerQuote } = useSaleQuote(
+    nftContract,
+    BigInt(tokenId),
+    amountWei > 0n ? amountWei : undefined,
+  );
 
   async function handleOffer() {
     if (!wallet || !addresses) {
       toast.error("Connect your wallet first.");
+      return;
+    }
+    const buyerTotal = (offerQuote as { buyerTotal: bigint } | undefined)?.buyerTotal;
+    if (!buyerTotal) {
+      toast.error("Offer quote is still loading. Try again in a moment.");
       return;
     }
     try {
@@ -396,9 +532,9 @@ export function OfferDialog({
         nftContract,
         BigInt(tokenId),
         quantity,
-        ETH_ADDRESS,
         amountWei,
         deadline,
+        buyerTotal,
       );
       toast.success("Offer submitted!", { id: "offer" });
       setOpen(false);
@@ -453,9 +589,15 @@ export function OfferDialog({
             </div>
 
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <FeeRow label="Offer Amount" value={`${amountEth.toFixed(4)} ETH`} strong />
+              <FeeRow label="Offer Amount" value={formatEth(amountWei)} strong />
+              {(offerQuote as { buyerTotal: bigint } | undefined)?.buyerTotal != null && (
+                <FeeRow
+                  label="You Pay (incl. fees)"
+                  value={formatEth((offerQuote as { buyerTotal: bigint }).buyerTotal)}
+                />
+              )}
               <p className="mt-2 text-[11px] text-muted-foreground">
-                ⓘ Funds are transferred only when the owner accepts your offer.
+                ⓘ ETH is escrowed in the marketplace until the owner accepts or the offer expires.
               </p>
             </div>
           </div>
@@ -469,7 +611,7 @@ export function OfferDialog({
           ) : (
             <Button
               onClick={handleOffer}
-              disabled={!wallet || amountEth <= 0 || isPending || isConfirming}
+              disabled={!wallet || amountWei <= 0n || isPending || isConfirming}
             >
               {!wallet ? "Connect Wallet" :
                 isPending ? "Confirm in wallet…" :
@@ -490,6 +632,7 @@ export function OfferDialog({
 
 export interface BidDialogProps {
   auctionId: bigint;
+  nftContract: `0x${string}`;
   minBid: bigint;
   paymentToken?: string;
   tokenId: string;
@@ -499,6 +642,7 @@ export interface BidDialogProps {
 
 export function BidDialog({
   auctionId,
+  nftContract,
   minBid,
   paymentToken = ETH_ADDRESS,
   tokenId,
@@ -506,26 +650,41 @@ export function BidDialog({
   label = "Place Bid",
 }: BidDialogProps) {
   const [open, setOpen] = useState(false);
-  const [bidText, setBidText] = useState(formatEth(minBid));
+  const [bidText, setBidText] = useState(() => formatEthCompact(minBid).replace(" ETH", ""));
   const { wallet } = useWallet();
   const { placeBid, placeBidERC20, approveErc20, isPending, isConfirming, isSuccess } = useAuction();
   const addresses = useAddresses();
+  const { data: minOnChain } = useMinimumBid(auctionId);
 
   const isEth = paymentToken === ETH_ADDRESS;
-  const bidWei = BigInt(Math.round((parseFloat(bidText) || 0) * 1e18));
-  const tooLow = bidWei < minBid;
+  const bidWei = parseEthInput(bidText);
+  const minGross = (minOnChain as { grossBid: bigint } | undefined)?.grossBid ?? minBid;
+  const tooLow = bidWei < minGross;
+
+  const { data: bidQuote } = useSaleQuote(
+    nftContract,
+    BigInt(tokenId),
+    bidWei > 0n ? bidWei : undefined,
+  );
 
   const endsIn = Number(endsAt) * 1000 - Date.now();
   const endsInMin = Math.max(0, Math.floor(endsIn / 60000));
 
   async function handleBid() {
     if (!wallet || !addresses) { toast.error("Connect your wallet first."); return; }
-    if (tooLow) { toast.error(`Bid must be at least ${formatEth(minBid)}`); return; }
+    if (tooLow) { toast.error(`Bid must be at least ${formatEth(minGross)}`); return; }
+    const buyerTotal =
+      (bidQuote as { buyerTotal: bigint } | undefined)?.buyerTotal ??
+      (minOnChain as { buyerTotal: bigint } | undefined)?.buyerTotal;
+    if (!buyerTotal) {
+      toast.error("Bid quote is still loading. Try again in a moment.");
+      return;
+    }
     try {
       if (isEth) {
-        await placeBid(auctionId, bidWei);
+        await placeBid(auctionId, bidWei, buyerTotal);
       } else {
-        await approveErc20(paymentToken as `0x${string}`, bidWei, addresses.marketplace);
+        await approveErc20(paymentToken as `0x${string}`, buyerTotal);
         await placeBidERC20(auctionId, bidWei);
       }
       toast.success("Bid placed!", { id: "bid" });
@@ -569,12 +728,18 @@ export function BidDialog({
               </div>
               {tooLow && (
                 <p className="mt-1 text-[11px] text-destructive">
-                  Minimum bid: {formatEth(minBid)}
+                  Minimum bid: {formatEth(minGross)}
                 </p>
               )}
             </div>
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <FeeRow label="Your Bid" value={`${parseFloat(bidText) || 0} ETH`} strong />
+              <FeeRow label="Your Bid" value={formatEth(bidWei)} strong />
+              {(bidQuote as { buyerTotal: bigint } | undefined)?.buyerTotal != null && (
+                <FeeRow
+                  label="You Pay (incl. fees)"
+                  value={formatEth((bidQuote as { buyerTotal: bigint }).buyerTotal)}
+                />
+              )}
               <p className="mt-2 text-[11px] text-muted-foreground">
                 ⓘ Anti-sniping: bids in the last 5 minutes extend the auction by 5 minutes.
               </p>
@@ -628,30 +793,30 @@ export function CreateAuctionDialog({
   const [startPriceText, setStartPriceText] = useState("0.01");
   const [duration, setDuration] = useState(86400); // 1 day default
   const { wallet } = useWallet();
-  const { approveAll, approve721, createAuction, isPending, isConfirming, isSuccess } = useAuction();
+  const { createAuction, isPending, isConfirming, isSuccess } = useAuction();
+  const { approveAll, approve721 } = useListing();
   const addresses = useAddresses();
 
-  const startPriceWei = BigInt(Math.round((parseFloat(startPriceText) || 0) * 1e18));
+  const startPriceWei = parseEthInput(startPriceText);
   const endTime = BigInt(Math.floor(Date.now() / 1000) + duration);
   const isERC721 = tokenStandard === "ERC-721";
 
   async function handleCreate() {
     if (!wallet || !addresses) { toast.error("Connect your wallet first."); return; }
+    if (startPriceWei <= 0n) { toast.error("Set a starting price."); return; }
     try {
-      // Approve NFT transfer first
       if (isERC721) {
-        await approve721(nftContract, BigInt(tokenId), addresses.marketplace);
+        await approve721(nftContract, BigInt(tokenId));
       } else {
-        await approveAll(nftContract, addresses.marketplace, true);
+        await approveAll(nftContract, true);
       }
-      // Create auction
       await createAuction(
         nftContract,
         BigInt(tokenId),
-        isERC721 ? 0 : 1,
+        1n,
+        ETH_ADDRESS,
         startPriceWei,
-        1n,          // quantity
-        ETH_ADDRESS, // payment token
+        BigInt(Math.floor(Date.now() / 1000)),
         endTime,
       );
       toast.success("Auction created!", { id: "auction" });
@@ -766,12 +931,24 @@ export function SweepDialog({
   const { wallet } = useWallet();
   const { execute, isPending, isConfirming, isSuccess } = useSweep();
   const { data: total } = useSweepTotal(items);
+  const totalPrice =
+    total && typeof total === "object" && "totalPrice" in total
+      ? (total as { totalPrice: bigint }).totalPrice
+      : Array.isArray(total)
+        ? (total[0] as bigint)
+        : typeof total === "bigint"
+          ? total
+          : undefined;
 
   async function handleSweep() {
     if (!wallet) { toast.error("Connect your wallet first."); return; }
     if (items.length === 0) { toast.error("Cart is empty."); return; }
     try {
-      await execute(items);
+      if (totalPrice == null) {
+        toast.error("Sweep quote is still loading. Try again in a moment.");
+        return;
+      }
+      await execute(items, totalPrice);
       toast.success(`Bought ${items.length} NFTs!`, { id: "sweep" });
       onClear();
       setOpen(false);
@@ -817,7 +994,7 @@ export function SweepDialog({
                 <div key={String(item.listingId)} className="flex items-center gap-3 rounded-md border border-border p-2 text-xs">
                   <div className="size-10 rounded bg-muted" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">Token #{String(item.tokenId)}</p>
+                    <p className="truncate font-semibold">Listing #{String(item.listingId)}</p>
                     <p className="text-muted-foreground">{formatEthCompact(item.pricePerItem)}</p>
                   </div>
                   <Button
@@ -838,7 +1015,7 @@ export function SweepDialog({
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
               <FeeRow
                 label="Total"
-                value={total ? formatEthCompact(total) : "Calculating…"}
+                value={totalPrice ? formatEthCompact(totalPrice) : "Calculating…"}
                 strong
               />
             </div>
@@ -872,5 +1049,3 @@ export function SweepDialog({
     </>
   );
 }
-
-

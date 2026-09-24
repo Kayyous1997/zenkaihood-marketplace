@@ -12,6 +12,7 @@ export interface CollectionMeta {
   twitter_handle: string | null;
   discord_url: string | null;
   telegram_url: string | null;
+  categories?: string[] | null;
 }
 
 /**
@@ -55,6 +56,7 @@ export function useSaveCollectionMeta() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["collection-meta", variables.contract_address.toLowerCase()] });
+      queryClient.invalidateQueries({ queryKey: ["collections-meta"] });
     },
   });
 }

@@ -1,22 +1,33 @@
 import { baseSepolia } from "wagmi/chains";
+import { robinhoodTestnet } from "@/lib/chains";
 
-/** Chain ID for the primary deployment network. */
+/** Chain ID for the default primary deployment network. */
 export const CHAIN_ID = baseSepolia.id; // 84532
 
 /**
  * Deployed contract addresses, keyed by chain ID.
- * All addresses are on Base Sepolia.
+ * Supports Base Sepolia (84532) and Robinhood Chain Testnet (46630).
  */
 export const ADDRESSES = {
   [baseSepolia.id]: {
     /** CollectionRegistry — permissionless collection registration */
-    registry: "0x1209Ea7122A50AB8c8ab31ee9c20D9912f3D0cc6" as `0x${string}`,
+    registry: "0xABCB5db96fcB6a9743Da56F4d4870B3505eBAD85" as `0x${string}`,
     /** Marketplace — listings, offers, auctions, sweep */
-    marketplace: "0xb3fb5aA85e5578C0B2F98bEe45985038Ae931b4C" as `0x${string}`,
+    marketplace: "0x1E4b93C28B1Cc2135894521a3b1b4d58cc21da5d" as `0x${string}`,
     /** MarketplaceViews — paginated read-only enumeration */
     marketplaceViews: "0x4CA91348E44481C2dc923FfC69f8017Ac4731FcD" as `0x${string}`,
     /** CollectionTokenViews — token supply & enumeration */
-    tokenViews: "0xb799CDB12657fB28bA53E6Ce572030Fc9Bd73068" as `0x${string}`,
+    tokenViews: "0x8118a477450cf4d7581cdf0dc973ed22cdcc4f24" as `0x${string}`,
+  },
+  [robinhoodTestnet.id]: {
+    /** CollectionRegistry — permissionless collection registration */
+    registry: "0xABCB5db96fcB6a9743Da56F4d4870B3505eBAD85" as `0x${string}`,
+    /** Marketplace — listings, offers, auctions, sweep */
+    marketplace: "0x1E4b93C28B1Cc2135894521a3b1b4d58cc21da5d" as `0x${string}`,
+    /** MarketplaceViews — paginated read-only enumeration */
+    marketplaceViews: "0x4CA91348E44481C2dc923FfC69f8017Ac4731FcD" as `0x${string}`,
+    /** CollectionTokenViews — token supply & enumeration */
+    tokenViews: "0x8118a477450cf4d7581cdf0dc973ed22cdcc4f24" as `0x${string}`,
   },
 } as const;
 

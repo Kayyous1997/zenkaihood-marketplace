@@ -9,6 +9,14 @@ import { useWallet } from "@/lib/wallet";
 import { gqlClient } from "@/indexer/client";
 import { GET_USER_ACTIVITY, type UserActivityResult, type ActivityFragment } from "@/indexer/queries";
 import { DEFAULT_REFETCH_MS } from "@/indexer/events";
+import {
+  activityKind,
+  activityLabel,
+  isBidActivity,
+  isListingActivity,
+  isSaleActivity,
+  isTransferActivity,
+} from "@/indexer/activity";
 import { formatEthCompact } from "@/lib/token-format";
 import { cn } from "@/lib/utils";
 
@@ -42,17 +50,18 @@ const tints: Record<string, string> = {
   Transfer: "bg-info/15 text-info",
 };
 
-const TAB_TYPES: Record<string, string | null> = {
+const TAB_TYPES: Record<string, ((type: string) => boolean) | null> = {
   All: null,
-  Sales: "Sale",
-  Purchases: "Purchase",
-  Listings: "Listing",
-  Bids: "Bid",
-  Transfers: "Transfer",
+  Sales: isSaleActivity,
+  Purchases: isSaleActivity,
+  Listings: isListingActivity,
+  Bids: isBidActivity,
+  Transfers: isTransferActivity,
 };
 
 function ActivityRow({ row }: { row: ActivityFragment }) {
-  const Icon = icons[row.type as keyof typeof icons] ?? Tag;
+  const kind = activityKind(row.type);
+  const Icon = icons[kind] ?? Tag;
   const price = row.listing?.pricePerItem ?? row.offer?.amount ?? row.auction?.highestBid ?? null;
   const payToken = row.listing?.paymentToken ?? row.offer?.paymentToken ?? row.auction?.paymentToken ?? null;
   const isEth = payToken === ETH_ADDRESS;
@@ -60,13 +69,13 @@ function ActivityRow({ row }: { row: ActivityFragment }) {
   return (
     <div className="grid items-center gap-3 border-b border-border p-2 last:border-0 sm:grid-cols-[150px_1fr_150px_auto]">
       <div className="flex items-center gap-3">
-        <span className={cn("grid size-10 shrink-0 place-content-center rounded-full", tints[row.type] ?? "bg-muted text-muted-foreground")}>
+        <span className={cn("grid size-10 shrink-0 place-content-center rounded-full", tints[kind] ?? "bg-muted text-muted-foreground")}>
           <Icon className="size-4" />
         </span>
         <span className="min-w-0">
-          <b className="block text-xs">{row.type}</b>
+          <b className="block text-xs">{activityLabel(row.type)}</b>
           <small className="mt-0.5 inline-block rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {row.type === "Listing" && row.listing?.active ? "Active" : "Completed"}
+            {row.type === "LISTING_CREATED" && row.listing?.active ? "Active" : "Completed"}
           </small>
           <small className="mt-1 block text-[10px] text-muted-foreground">
             {new Date(Number(row.timestamp) * 1000).toLocaleDateString()}
@@ -105,34 +114,34 @@ function ActivityRow({ row }: { row: ActivityFragment }) {
 }
 
 function MyActivityPage() {
-  const { wallet } = useWallet();
+  const { wallet, address } = useWallet();
   const [tab, setTab] = useState("All");
   const [page, setPage] = useState(0);
 
   const typeFilter = TAB_TYPES[tab] ?? null;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["user-activity", wallet, page, typeFilter],
+    queryKey: ["user-activity", address, page, typeFilter],
     queryFn: () =>
       gqlClient.request<UserActivityResult>(GET_USER_ACTIVITY, {
-        account: wallet as `0x${string}`,
+        account: address as `0x${string}`,
         first: PAGE_SIZE,
         skip: page * PAGE_SIZE,
       }),
-    enabled: !!wallet,
+    enabled: !!address,
     refetchInterval: DEFAULT_REFETCH_MS,
   });
 
   const allActivity = data?.activities ?? [];
-  const rows = typeFilter ? allActivity.filter((r) => r.type === typeFilter) : allActivity;
+  const rows = typeFilter ? allActivity.filter((r) => typeFilter(r.type)) : allActivity;
 
   const tabCounts: [string, string][] = [
     ["All", String(allActivity.length)],
-    ["Sales", String(allActivity.filter((r) => r.type === "Sale").length)],
-    ["Purchases", String(allActivity.filter((r) => r.type === "Purchase").length)],
-    ["Listings", String(allActivity.filter((r) => r.type === "Listing").length)],
-    ["Bids", String(allActivity.filter((r) => r.type === "Bid").length)],
-    ["Transfers", String(allActivity.filter((r) => r.type === "Transfer").length)],
+    ["Sales", String(allActivity.filter((r) => isSaleActivity(r.type)).length)],
+    ["Purchases", String(allActivity.filter((r) => isSaleActivity(r.type)).length)],
+    ["Listings", String(allActivity.filter((r) => isListingActivity(r.type)).length)],
+    ["Bids", String(allActivity.filter((r) => isBidActivity(r.type)).length)],
+    ["Transfers", String(allActivity.filter((r) => isTransferActivity(r.type)).length)],
   ];
 
   return (
@@ -181,11 +190,11 @@ function MyActivityPage() {
           <InfoCard
             title="Quick Stats"
             rows={[
-              ["Total Sales", String(allActivity.filter((r) => r.type === "Sale").length)],
-              ["Total Purchases", String(allActivity.filter((r) => r.type === "Purchase").length)],
-              ["Total Listings", String(allActivity.filter((r) => r.type === "Listing").length)],
-              ["Total Bids", String(allActivity.filter((r) => r.type === "Bid").length)],
-              ["Total Transfers", String(allActivity.filter((r) => r.type === "Transfer").length)],
+              ["Total Sales", String(allActivity.filter((r) => isSaleActivity(r.type)).length)],
+              ["Total Purchases", String(allActivity.filter((r) => isSaleActivity(r.type)).length)],
+              ["Total Listings", String(allActivity.filter((r) => isListingActivity(r.type)).length)],
+              ["Total Bids", String(allActivity.filter((r) => isBidActivity(r.type)).length)],
+              ["Total Transfers", String(allActivity.filter((r) => isTransferActivity(r.type)).length)],
             ]}
           />
         </aside>

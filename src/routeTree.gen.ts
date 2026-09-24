@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CreateRouteImport } from './routes/create'
+import { Route as EditCollectionRouteImport } from './routes/edit-collection'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as ListingsRouteImport } from './routes/listings'
 import { Route as MyActivityRouteImport } from './routes/my-activity'
@@ -19,6 +21,7 @@ import { Route as MyNftsRouteImport } from './routes/my-nfts'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as CollectionsSlugRouteImport } from './routes/collections.$slug'
 import { Route as NftsIdRouteImport } from './routes/nfts.$id'
+import { Route as ApiIpfsSplatRouteImport } from './routes/api/ipfs.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,9 +33,19 @@ const ActivityRoute = ActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CreateRoute = CreateRouteImport.update({
   id: '/create',
   path: '/create',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EditCollectionRoute = EditCollectionRouteImport.update({
+  id: '/edit-collection',
+  path: '/edit-collection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExploreRoute = ExploreRouteImport.update({
@@ -70,11 +83,18 @@ const NftsIdRoute = NftsIdRouteImport.update({
   path: '/nfts/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIpfsSplatRoute = ApiIpfsSplatRouteImport.update({
+  id: '/api/ipfs/$',
+  path: '/api/ipfs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/admin': typeof AdminRoute
   '/create': typeof CreateRoute
+  '/edit-collection': typeof EditCollectionRoute
   '/explore': typeof ExploreRoute
   '/listings': typeof ListingsRoute
   '/my-activity': typeof MyActivityRoute
@@ -82,11 +102,14 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
+  '/api/ipfs/$': typeof ApiIpfsSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/admin': typeof AdminRoute
   '/create': typeof CreateRoute
+  '/edit-collection': typeof EditCollectionRoute
   '/explore': typeof ExploreRoute
   '/listings': typeof ListingsRoute
   '/my-activity': typeof MyActivityRoute
@@ -94,12 +117,15 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
+  '/api/ipfs/$': typeof ApiIpfsSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/admin': typeof AdminRoute
   '/create': typeof CreateRoute
+  '/edit-collection': typeof EditCollectionRoute
   '/explore': typeof ExploreRoute
   '/listings': typeof ListingsRoute
   '/my-activity': typeof MyActivityRoute
@@ -107,13 +133,16 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/collections/$slug': typeof CollectionsSlugRoute
   '/nfts/$id': typeof NftsIdRoute
+  '/api/ipfs/$': typeof ApiIpfsSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/activity'
+    | '/admin'
     | '/create'
+    | '/edit-collection'
     | '/explore'
     | '/listings'
     | '/my-activity'
@@ -121,11 +150,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/collections/$slug'
     | '/nfts/$id'
+    | '/api/ipfs/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/activity'
+    | '/admin'
     | '/create'
+    | '/edit-collection'
     | '/explore'
     | '/listings'
     | '/my-activity'
@@ -133,11 +165,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/collections/$slug'
     | '/nfts/$id'
+    | '/api/ipfs/$'
   id:
     | '__root__'
     | '/'
     | '/activity'
+    | '/admin'
     | '/create'
+    | '/edit-collection'
     | '/explore'
     | '/listings'
     | '/my-activity'
@@ -145,12 +180,15 @@ export interface FileRouteTypes {
     | '/profile'
     | '/collections/$slug'
     | '/nfts/$id'
+    | '/api/ipfs/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
+  AdminRoute: typeof AdminRoute
   CreateRoute: typeof CreateRoute
+  EditCollectionRoute: typeof EditCollectionRoute
   ExploreRoute: typeof ExploreRoute
   ListingsRoute: typeof ListingsRoute
   MyActivityRoute: typeof MyActivityRoute
@@ -158,6 +196,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   CollectionsSlugRoute: typeof CollectionsSlugRoute
   NftsIdRoute: typeof NftsIdRoute
+  ApiIpfsSplatRoute: typeof ApiIpfsSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -176,11 +215,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/create': {
       id: '/create'
       path: '/create'
       fullPath: '/create'
       preLoaderRoute: typeof CreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/edit-collection': {
+      id: '/edit-collection'
+      path: '/edit-collection'
+      fullPath: '/edit-collection'
+      preLoaderRoute: typeof EditCollectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/explore': {
@@ -232,13 +285,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NftsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ipfs/$': {
+      id: '/api/ipfs/$'
+      path: '/api/ipfs/$'
+      fullPath: '/api/ipfs/$'
+      preLoaderRoute: typeof ApiIpfsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
+  AdminRoute: AdminRoute,
   CreateRoute: CreateRoute,
+  EditCollectionRoute: EditCollectionRoute,
   ExploreRoute: ExploreRoute,
   ListingsRoute: ListingsRoute,
   MyActivityRoute: MyActivityRoute,
@@ -246,6 +308,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   CollectionsSlugRoute: CollectionsSlugRoute,
   NftsIdRoute: NftsIdRoute,
+  ApiIpfsSplatRoute: ApiIpfsSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

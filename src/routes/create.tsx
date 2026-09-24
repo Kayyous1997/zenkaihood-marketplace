@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ChevronDown, Globe, ImagePlus, MessageCircle,
   Send, Settings, Twitter, Wallet,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useSignMessage } from "wagmi";
+import { useChainId, useReadContract, useSignMessage, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,16 @@ import { useSaveCollectionMeta } from "@/hooks/useCollectionMeta";
 import { parseContractError } from "@/lib/contract-errors";
 import { signInWithWallet, uploadCollectionImage, useSupabaseSession, isSupabaseConfigured } from "@/lib/supabase";
 import { txUrl } from "@/lib/basescan";
+import { isSupportedChainId, robinhoodTestnet, SUPPORTED_CHAINS } from "@/lib/chains";
+import { BaseIcon, RobinhoodIcon } from "@/components/chain-icons";
+import { CategorySelector } from "@/components/category-selector";
+import { useMarketplaceConfig } from "@/hooks/useMarketplaceConfig";
+
+function normalizeCollectionMetadataUri(value: string) {
+  const uri = value.trim();
+  if (/^(Qm|bafy)[^\s/]+(?:\/.*)?$/i.test(uri)) return `ipfs://${uri}`;
+  return uri;
+}
 
 export const Route = createFileRoute("/create")({
   head: () => ({ meta: [
@@ -28,13 +39,18 @@ export const Route = createFileRoute("/create")({
 });
 
 function RegisterCollectionPage() {
-  const { wallet } = useWallet();
+  const { wallet, address } = useWallet();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { session, signOut } = useSupabaseSession();
   const { signMessageAsync } = useSignMessage();
 
   // ─── Form state ───────────────────────────────────────────────────────────
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [collectionMetadataUri, setCollectionMetadataUri] = useState("");
+  const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
   const [contract, setContract] = useState("");
   const [royaltyText, setRoyaltyText] = useState("5");
   const [payout, setPayout] = useState("");
@@ -69,19 +85,41 @@ function RegisterCollectionPage() {
     isValidAddress ? (contract as `0x${string}`) : undefined
   );
 
-  const { registerCollection, hash: txHash, isPending, isConfirming, isSuccess, reset } = useRegistry();
+  const { data: contractOwner, isLoading: isCheckingOwner } = useReadContract({
+    address: isValidAddress ? (contract as `0x${string}`) : undefined,
+    abi: [{ type: "function", name: "owner", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" }] as const,
+    functionName: "owner",
+    query: { enabled: isValidAddress && isSupportedChainId(chainId) },
+  });
+
+  const { registerCollection, setMetadataURI, hash: txHash, isPending, isConfirming, isSuccess, reset } = useRegistry();
   const { mutateAsync: saveCollectionMeta } = useSaveCollectionMeta();
 
   // Save Supabase metadata after on-chain tx is confirmed
   const [pendingMeta, setPendingMeta] = useState<null | {
-    logoUrl: string | null; bannerUrl: string | null;
+    logoUrl: string | null; bannerUrl: string | null; metadataURI: string;
   }>(null);
+  const [metadataTxStarted, setMetadataTxStarted] = useState(false);
 
   useEffect(() => {
-    if (isSuccess && pendingMeta && isSupabaseConfigured && session && wallet) {
+    reset();
+    setPendingMeta(null);
+    setMetadataTxStarted(false);
+  }, [contract, payout, tokenStandard, royaltyBps, reset]);
+
+  useEffect(() => {
+    if (isSuccess && pendingMeta && !metadataTxStarted) {
+      setMetadataTxStarted(true);
+      setMetadataURI(contract as `0x${string}`, pendingMeta.metadataURI).catch(() => {
+        setMetadataTxStarted(false);
+        setIsSubmitting(false);
+      });
+      return;
+    }
+    if (isSuccess && pendingMeta && isSupabaseConfigured && session && address) {
       saveCollectionMeta({
         contract_address: contract,
-        wallet_address: wallet.toLowerCase(),
+        wallet_address: address.toLowerCase(),
         name: name || null,
         description: description || null,
         logo_url: pendingMeta.logoUrl,
@@ -90,6 +128,7 @@ function RegisterCollectionPage() {
         twitter_handle: twitter || null,
         discord_url: discord || null,
         telegram_url: telegram || null,
+        categories: selectedCategories.length > 0 ? selectedCategories : null,
       }).then(() => {
         setPendingMeta(null);
         setIsSubmitting(false);
@@ -99,7 +138,8 @@ function RegisterCollectionPage() {
         setIsSubmitting(false);
         toast.error(err instanceof Error ? err.message : "Metadata save failed.", { id: "register" });
       });
-    } else if (isSuccess && !isSupabaseConfigured) {
+    } else if (isSuccess && pendingMeta && !isSupabaseConfigured) {
+      setPendingMeta(null);
       setIsSubmitting(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,10 +159,10 @@ function RegisterCollectionPage() {
 
   // ─── Wallet sign-in ───────────────────────────────────────────────────────
   async function handleSignIn() {
-    if (!wallet) { toast.error("Connect your wallet first."); return; }
+    if (!address) { toast.error("Connect your wallet first."); return; }
     setIsSigningIn(true);
     try {
-      await signInWithWallet(wallet, signMessageAsync);
+      await signInWithWallet(address, signMessageAsync);
       toast.success("Signed in with wallet!");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Sign-in failed.");
@@ -133,9 +173,16 @@ function RegisterCollectionPage() {
 
   // ─── Submit ───────────────────────────────────────────────────────────────
   async function handleRegister() {
-    if (!wallet) { toast.error("Connect your wallet first."); return; }
+    if (!address) { toast.error("Connect your wallet first."); return; }
+    if (!isSupportedChainId(chainId)) { toast.error("Switch to Base Sepolia or Robinhood Testnet."); return; }
     if (!isValidAddress) { toast.error("Enter a valid contract address."); return; }
+    if (isCheckingOwner) { toast.error("Still checking contract ownership."); return; }
+    if (!contractOwner || contractOwner.toLowerCase() !== address.toLowerCase()) { toast.error("Connected wallet is not the NFT contract owner."); return; }
     if (!payout || !/^0x[0-9a-fA-F]{40}$/.test(payout)) { toast.error("Enter a valid payout wallet address."); return; }
+    const metadataInput = collectionMetadataUri.trim();
+    if (!metadataInput || !(/^(ipfs:\/\/|https?:\/\/|Qm|bafy)/i.test(metadataInput))) {
+      toast.error("Enter the collection metadata IPFS CID or URL."); return;
+    }
     if (isRegistered) { toast.error("This collection is already registered."); return; }
     if (isSupabaseConfigured && !session) { toast.error("Sign in with your wallet first to save collection metadata."); return; }
 
@@ -160,7 +207,10 @@ function RegisterCollectionPage() {
       }
 
       // Store meta for the useEffect to pick up after isSuccess fires
-      setPendingMeta({ logoUrl, bannerUrl });
+      // The collection metadata itself is supplied by the creator. Logo/banner
+      // uploads remain separate Supabase assets and are not used as this URI.
+      const metadataURI = normalizeCollectionMetadataUri(metadataInput);
+      setPendingMeta({ logoUrl, bannerUrl, metadataURI });
 
       // 2. Submit the on-chain tx — useRegistry handles its own toasts internally
       await registerCollection(
@@ -177,9 +227,31 @@ function RegisterCollectionPage() {
     }
   }
 
+  async function handleUpdateMetadata() {
+    if (!address) { toast.error("Connect your wallet first."); return; }
+    if (!isSupportedChainId(chainId)) { toast.error("Switch to Base Sepolia or Robinhood Testnet."); return; }
+    if (!isValidAddress || isRegistered !== true) { toast.error("Enter a registered collection contract."); return; }
+    const metadataInput = collectionMetadataUri.trim();
+    if (!metadataInput || !(/^(ipfs:\/\/|https?:\/\/|Qm|bafy)/i.test(metadataInput))) {
+      toast.error("Enter the collection metadata IPFS CID or URL."); return;
+    }
+    setIsUpdatingMetadata(true);
+    try {
+      await setMetadataURI(contract as `0x${string}`, normalizeCollectionMetadataUri(metadataInput));
+      toast.success("Metadata update submitted.", { id: "metadata-update" });
+      setCollectionMetadataUri("");
+    } catch (err) {
+      toast.error(parseContractError(err), { id: "metadata-update" });
+    } finally {
+      setIsUpdatingMetadata(false);
+    }
+  }
+
+
   const needsSignIn = isSupabaseConfigured && !session;
   const isWorking = isPending || isConfirming || isSubmitting;
-  const canSubmit = !!(wallet && isValidAddress && payout && !isRegistered && !isWorking && !needsSignIn);
+  const ownsContract = !!address && !!contractOwner && contractOwner.toLowerCase() === address.toLowerCase();
+  const canSubmit = !!(address && isSupportedChainId(chainId) && isValidAddress && ownsContract && payout && collectionMetadataUri.trim() && !isRegistered && !isWorking && !needsSignIn);
 
   return (
     <AccountShell>
@@ -198,7 +270,7 @@ function RegisterCollectionPage() {
           <section className="rounded-md border border-border bg-surface/90 p-5 sm:p-6">
 
             {/* Step 1 — Artwork */}
-            <Step number="1." title="Collection Artwork" subtitle="Upload a logo and a banner. Recommended 350×350 and 1400×400.">
+            <Step number="1." title="Collection Artwork" subtitle="Upload a logo and a banner. Recommended 350×350 and 1500×500.">
               {/* Hidden file inputs */}
               <input
                 ref={logoInputRef}
@@ -276,6 +348,27 @@ function RegisterCollectionPage() {
                 placeholder="Tell collectors the story behind your collection."
                 className="control h-auto w-full py-2"
               />
+
+              <div className="pt-2">
+                <CategorySelector
+                  selectedCategories={selectedCategories}
+                  onChange={setSelectedCategories}
+                />
+              </div>
+
+              <div>
+                <label className="field-label" htmlFor="col-metadata-uri">Collection Metadata IPFS CID or URL</label>
+                <input
+                  id="col-metadata-uri"
+                  value={collectionMetadataUri}
+                  onChange={(e) => setCollectionMetadataUri(e.target.value)}
+                  placeholder="ipfs://Qm.../metadata.json or https://..."
+                  className="control w-full font-mono text-xs"
+                />
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  This is the collection metadata JSON URI stored on-chain. Logo and banner uploads above remain separate.
+                </p>
+              </div>
             </Step>
 
             {/* Step 3 — Contract */}
@@ -288,7 +381,7 @@ function RegisterCollectionPage() {
                 className={cn("control w-full font-mono", isValidAddress && "border-success", contract && !isValidAddress && "border-destructive")}
               />
               {isValidAddress && isRegistered === true && (
-                <p className="mt-2 text-[11px] text-destructive">⚠ This collection is already registered.</p>
+                <p className="mt-2 text-[11px] text-amber-500">⚠ This collection is already registered. <Link to="/edit-collection" search={{ contract }} className="underline">Edit collection metadata</Link>.</p>
               )}
               {isValidAddress && isRegistered === false && (
                 <p className="mt-2 text-[11px] text-success">✓ Contract found, not yet registered.</p>
@@ -313,11 +406,11 @@ function RegisterCollectionPage() {
                     id="col-payout"
                     value={payout}
                     onChange={(e) => setPayout(e.target.value)}
-                    placeholder={wallet ?? "0x0000…0000"}
+                    placeholder={address ?? "0x0000…0000"}
                     className="control w-full font-mono"
                   />
                   {wallet && !payout && (
-                    <button type="button" onClick={() => setPayout(wallet)} className="mt-1 text-[11px] text-primary hover:underline">
+                    <button type="button" onClick={() => setPayout(address ?? "")} className="mt-1 text-[11px] text-primary hover:underline">
                       Use connected wallet
                     </button>
                   )}
@@ -377,14 +470,29 @@ function RegisterCollectionPage() {
               <div className="mt-4 rounded-md bg-success/10 p-3 text-sm text-success">
                 ✓ Collection registered! It will appear in the marketplace once the subgraph indexes the transaction.
                 {txHash && (
-                  <a href={txUrl(txHash)} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-2 hover:opacity-80">
-                    View on BaseScan ↗
+                  <a href={txUrl(txHash, chainId)} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-2 hover:opacity-80">
+                    View on Explorer ↗
                   </a>
                 )}
               </div>
             )}
 
             {/* Submit row */}
+            {address && !isSupportedChainId(chainId) && (
+              <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600">
+                <span>Please switch to a supported network (Base Sepolia or Robinhood Testnet).</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => switchChain({ chainId: baseSepolia.id })} disabled={isSwitching}>
+                    <BaseIcon className="size-4" />
+                    Base Sepolia
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => switchChain({ chainId: robinhoodTestnet.id })} disabled={isSwitching}>
+                    <RobinhoodIcon className="size-4" />
+                    Robinhood Testnet
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-md bg-muted p-3 sm:flex-row">
               <p className="text-[11px] text-muted-foreground">ⓘ Registering does not mint or transfer anything. Your contract stays entirely yours.</p>
               <Button
@@ -426,7 +534,7 @@ function RegisterCollectionPage() {
               {[
                 ["Contract", contract ? (isValidAddress ? "Valid ✓" : "Invalid address") : "Not set"],
                 ["Already registered", isRegistered === undefined ? "Checking…" : isRegistered ? "Yes — already live" : "No — ready to register"],
-                ["Ownership", "Verified on-chain at submission"],
+                ["Ownership", isCheckingOwner ? "Checking…" : ownsContract ? "Verified ✓" : "Not verified"],
                 ["Off-chain metadata", !isSupabaseConfigured ? "Not configured" : session ? "Ready ✓" : "Sign in required"],
                 ["Visibility", isSuccess ? "Live" : "Draft"],
               ].map(([label, value]) => (
@@ -453,6 +561,9 @@ function CollectionPreview({
   logoPreview: string | null; bannerPreview: string | null;
   website: string; twitter: string; discord: string; telegram: string;
 }) {
+  const { platformFeePercent, platformFeeFraction } = useMarketplaceConfig();
+  const feePercentNum = platformFeeFraction * 100;
+  const sellerReceives = Math.max(0, 100 - feePercentNum - royalty);
   const hasSocials = website || twitter || discord || telegram;
 
   return (
@@ -490,9 +601,9 @@ function CollectionPreview({
         </div>
 
         <div className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
-          <FeeLine label="Marketplace Fee" value="2.5%" />
+          <FeeLine label="Marketplace Fee" value={platformFeePercent} />
           <FeeLine label="Your Royalty" value={`${royalty}%`} />
-          <FeeLine label="Seller Receives" value={`${(100 - 2.5 - royalty).toFixed(2)}%`} strong />
+          <FeeLine label="Seller Receives" value={`${sellerReceives.toFixed(2).replace(/\.?0+$/, "")}%`} strong />
         </div>
 
         {hasSocials && (

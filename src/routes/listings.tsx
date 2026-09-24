@@ -4,7 +4,7 @@ import { CalendarDays, Info, MoreHorizontal, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { AccountShell, PageHead, SelectBox, SellDialog, Tabs, Verified } from "@/components/zenkai";
+import { AccountShell, PageHead, SelectBox, Tabs, Verified } from "@/components/zenkai";
 import { useWallet } from "@/lib/wallet";
 import { gqlClient } from "@/indexer/client";
 import { GET_LISTINGS_BY_SELLER, type ListingsBySellerResult } from "@/indexer/queries";
@@ -38,19 +38,19 @@ function timeLeft(endTime: string): string {
 }
 
 function ListingsPage() {
-  const { wallet } = useWallet();
+  const { wallet, address } = useWallet();
   const [tab, setTab] = useState("Active");
-  const { cancelListing, isPending } = useListing();
+  const { cancelListing, listingPending } = useListing();
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["my-listings", wallet],
+    queryKey: ["my-listings", address],
     queryFn: () =>
       gqlClient.request<ListingsBySellerResult>(GET_LISTINGS_BY_SELLER, {
-        seller: wallet as `0x${string}`,
+        seller: address as `0x${string}`,
         first: 50,
         skip: 0,
       }),
-    enabled: !!wallet,
+    enabled: !!address,
     refetchInterval: DEFAULT_REFETCH_MS,
   });
 
@@ -61,7 +61,7 @@ function ListingsPage() {
     if (tab === "Active") return l.active && !l.cancelled && Number(l.endTime) > now;
     if (tab === "Sold") return !l.active && !l.cancelled;
     if (tab === "Cancelled") return l.cancelled;
-    if (tab === "Expired") return !l.cancelled && !l.active && Number(l.endTime) <= now;
+    if (tab === "Expired") return !l.cancelled && Number(l.endTime) <= now;
     return true;
   });
 
@@ -88,7 +88,7 @@ function ListingsPage() {
         description={<>Manage your NFT listings, update prices, or cancel them anytime.<br />Your items are visible to buyers on the marketplace.</>}
         action={
           <div className="flex flex-wrap gap-2">
-            <SellDialog label="List an NFT" variant="default" />
+            <Button asChild variant="default"><Link to="/my-nfts"><Plus />List an NFT</Link></Button>
             <Button asChild size="lg" variant="outline"><Link to="/create"><Plus />Register Collection</Link></Button>
           </div>
         }
@@ -158,7 +158,7 @@ function ListingsPage() {
                       size="sm"
                       className="text-xs"
                       variant="outline"
-                      disabled={!item.active || isPending}
+                      disabled={!item.active || listingPending}
                       onClick={() => handleCancel(item.id)}
                     >
                       Cancel Listing

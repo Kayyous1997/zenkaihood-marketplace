@@ -26,6 +26,7 @@ export function useWallet() {
     address: mounted ? (address ?? null) : null,
     wallet: mounted && address ? shortenAddress(address) : null,
     connected: mounted && isConnected,
+    isConnected: mounted && isConnected,
     connectorName: connector?.name ?? null,
     // On an unsupported network, wagmi resolves `chain` as undefined — surface that.
     chainName: chain?.name ?? null,
