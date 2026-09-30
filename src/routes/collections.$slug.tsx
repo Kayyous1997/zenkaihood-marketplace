@@ -323,9 +323,9 @@ function CollectionPage() {
 
   // Listing price lookup map for trait floor computation
   const listingPriceMap = useMemo(() => {
-    const map = new Map<string, bigint>();
+    const map: Record<string, string> = {};
     for (const l of ethListings) {
-      map.set(l.tokenId, BigInt(l.pricePerItem));
+      map[l.tokenId] = l.pricePerItem;
     }
     return map;
   }, [ethListings]);
@@ -366,8 +366,8 @@ function CollectionPage() {
     for (const s of sales) if (s.tokenId) tokenIdSet.add(s.tokenId);
 
     // 3. If on-chain supply exists and token count is small, probe sequential IDs 1..N
-    if (onChainSupply && onChainSupply > 0n && onChainSupply <= 60n) {
-      const supplyNum = Number(onChainSupply);
+    const supplyNum = onChainSupply ? parseInt(onChainSupply, 10) : 0;
+    if (supplyNum > 0 && supplyNum <= 60) {
       for (let i = 1; i <= supplyNum; i++) {
         tokenIdSet.add(String(i));
       }
@@ -438,7 +438,8 @@ function CollectionPage() {
       if (item.owner) ownersSet.add(item.owner.toLowerCase());
     }
     const count = ownersSet.size > 0 ? ownersSet.size : Math.max(1, Math.round(allItems.length * 0.45));
-    const total = onChainSupply && onChainSupply > 0n ? Number(onChainSupply) : Math.max(allItems.length, 1);
+    const supplyNum = onChainSupply ? parseInt(onChainSupply, 10) : 0;
+    const total = supplyNum > 0 ? supplyNum : Math.max(allItems.length, 1);
     const pct = Math.min(100, Math.max(1, Math.round((count / total) * 100)));
     return {
       uniqueOwnersCount: count,
@@ -455,8 +456,8 @@ function CollectionPage() {
   );
 
   const traitGroups = traitsData?.traitGroups ?? [];
-  const tokenTraitsMap = traitsData?.tokenTraitsMap;
-  const tokenRarityMap = traitsData?.tokenRarityMap;
+  const tokenTraitsMap = traitsData?.tokenTraitsMap ?? {};
+  const tokenRarityMap = traitsData?.tokenRarityMap ?? {};
 
   // Toggle Trait Selection
   function handleToggleTrait(traitType: string, value: string) {
@@ -538,7 +539,7 @@ function CollectionPage() {
     // 4. OpenSea Trait Filtering
     if (activeTraitCount > 0 && tokenTraitsMap) {
       rows = rows.filter((i) => {
-        const itemTraits = tokenTraitsMap.get(i.tokenId) ?? [];
+        const itemTraits = tokenTraitsMap[i.tokenId] ?? [];
         const itemTraitLookup = new Map<string, string>();
         for (const t of itemTraits) {
           itemTraitLookup.set(t.trait_type, t.value);
@@ -572,14 +573,14 @@ function CollectionPage() {
       });
     } else if (sort === "Rarity: Rare to Common") {
       rows.sort((a, b) => {
-        const rA = tokenRarityMap?.get(a.tokenId)?.rank ?? 99999;
-        const rB = tokenRarityMap?.get(b.tokenId)?.rank ?? 99999;
+        const rA = tokenRarityMap[a.tokenId]?.rank ?? 99999;
+        const rB = tokenRarityMap[b.tokenId]?.rank ?? 99999;
         return rA - rB;
       });
     } else if (sort === "Rarity: Common to Rare") {
       rows.sort((a, b) => {
-        const rA = tokenRarityMap?.get(a.tokenId)?.rank ?? 0;
-        const rB = tokenRarityMap?.get(b.tokenId)?.rank ?? 0;
+        const rA = tokenRarityMap[a.tokenId]?.rank ?? 0;
+        const rB = tokenRarityMap[b.tokenId]?.rank ?? 0;
         return rB - rA;
       });
     } else if (sort === "Token ID") {
@@ -1302,7 +1303,7 @@ function CollectionPage() {
                                         </div>
                                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-semibold">
                                           {v.floorPrice ? (
-                                            <span className="text-primary">{formatEthCompact(v.floorPrice)}</span>
+                                            <span className="text-primary">{formatEthCompact(BigInt(v.floorPrice))}</span>
                                           ) : null}
                                           <span>{v.count}</span>
                                         </div>
@@ -1372,7 +1373,7 @@ function CollectionPage() {
                   <div className="space-y-6">
                     <div className={gridClass}>
                       {paginatedItems.map((item, index) => {
-                        const rarity = tokenRarityMap?.get(item.tokenId);
+                        const rarity = tokenRarityMap[item.tokenId];
                         if (item.status === "Buy Now" && item.listing) {
                           return (
                             <ListingCard
@@ -1452,7 +1453,7 @@ function CollectionPage() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {paginatedItems.map((item) => {
-                            const rarity = tokenRarityMap?.get(item.tokenId);
+                            const rarity = tokenRarityMap[item.tokenId];
                             if (item.status === "Buy Now" && item.listing) {
                               return (
                                 <ListingTableRow
@@ -2119,7 +2120,7 @@ function UnlistedCard({
     abi: erc721Abi,
     functionName: "ownerOf",
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    query: { enabled: !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
+    query: { enabled: typeof window !== "undefined" && !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
   });
 
   const { data: user1155Balance } = useReadContract({
@@ -2127,7 +2128,7 @@ function UnlistedCard({
     abi: erc1155Abi,
     functionName: "balanceOf",
     args: address && tokenId ? [address as `0x${string}`, BigInt(tokenId)] : undefined,
-    query: { enabled: isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
+    query: { enabled: typeof window !== "undefined" && isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
   });
 
   const effectiveOwner = (onchainOwner as string | undefined) ?? owner;
@@ -2363,7 +2364,7 @@ function UnlistedTableRow({
     abi: erc721Abi,
     functionName: "ownerOf",
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    query: { enabled: !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
+    query: { enabled: typeof window !== "undefined" && !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
   });
 
   const { data: user1155Balance } = useReadContract({
@@ -2371,7 +2372,7 @@ function UnlistedTableRow({
     abi: erc1155Abi,
     functionName: "balanceOf",
     args: address && tokenId ? [address as `0x${string}`, BigInt(tokenId)] : undefined,
-    query: { enabled: isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
+    query: { enabled: typeof window !== "undefined" && isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
   });
 
   const effectiveOwner = (onchainOwner as string | undefined) ?? owner;

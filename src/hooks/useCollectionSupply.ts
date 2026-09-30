@@ -27,7 +27,7 @@ const supplyAbi = [
 
 /**
  * Reads the total token supply / minted count from an NFT contract on-chain.
- * Tries `totalSupply()`, `totalMinted()`, and `maxSupply()`.
+ * Returns string | null for JSON serialization and SSR safety.
  */
 export function useCollectionSupply(contractAddress?: string | null) {
   const client = usePublicClient();
@@ -38,7 +38,7 @@ export function useCollectionSupply(contractAddress?: string | null) {
     queryKey: ["collection-supply", address],
     enabled: isValid && !!client,
     staleTime: 60_000,
-    queryFn: async (): Promise<bigint | null> => {
+    queryFn: async (): Promise<string | null> => {
       if (!client || !address) return null;
 
       // 1. Try totalSupply()
@@ -48,7 +48,7 @@ export function useCollectionSupply(contractAddress?: string | null) {
           abi: supplyAbi,
           functionName: "totalSupply",
         });
-        if (typeof supply === "bigint") return supply;
+        if (typeof supply === "bigint") return String(supply);
       } catch {
         // Fallback to next method
       }
@@ -60,7 +60,7 @@ export function useCollectionSupply(contractAddress?: string | null) {
           abi: supplyAbi,
           functionName: "totalMinted",
         });
-        if (typeof supply === "bigint") return supply;
+        if (typeof supply === "bigint") return String(supply);
       } catch {
         // Fallback to next method
       }
@@ -72,7 +72,7 @@ export function useCollectionSupply(contractAddress?: string | null) {
           abi: supplyAbi,
           functionName: "maxSupply",
         });
-        if (typeof supply === "bigint") return supply;
+        if (typeof supply === "bigint") return String(supply);
       } catch {
         // No supported supply method
       }

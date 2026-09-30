@@ -17,13 +17,20 @@ const erc721WithTokenUri = [
 export interface TraitValueCount {
   value: string;
   count: number;
-  floorPrice?: bigint | null;
+  floorPrice?: string | null;
 }
 
 export interface TraitGroup {
   traitType: string;
   values: TraitValueCount[];
   totalCount: number;
+}
+
+export interface TokenRarity {
+  rank: number;
+  score: number;
+  percentile: number;
+  label: string;
 }
 
 // Fallback thematic traits pool for collections
@@ -51,12 +58,13 @@ export function getFallbackTokenTraits(collectionAddress: string, tokenId: strin
 
 /**
  * Fetches, aggregates, and computes traits / attributes across all tokens in a collection.
+ * Fully JSON-serializable (no raw BigInts or Maps) for bulletproof SSR.
  */
 export function useCollectionTraits(
   collectionAddress: `0x${string}` | undefined,
   tokenIds: string[],
   metadataURI?: string | null,
-  listingPriceMap?: Map<string, bigint>,
+  listingPriceMap?: Record<string, string>,
 ) {
   const publicClient = usePublicClient();
 
@@ -65,12 +73,18 @@ export function useCollectionTraits(
     enabled: !!collectionAddress && tokenIds.length > 0,
     staleTime: 1000 * 60 * 30, // 30 mins
     queryFn: async () => {
-      if (!collectionAddress) return { traitGroups: [] as TraitGroup[], tokenTraitsMap: new Map<string, Array<{ trait_type: string; value: string }>>() };
+      if (!collectionAddress) {
+        return {
+          traitGroups: [] as TraitGroup[],
+          tokenTraitsMap: {} as Record<string, Array<{ trait_type: string; value: string }>>,
+          tokenRarityMap: {} as Record<string, TokenRarity>,
+        };
+      }
 
-      const tokenTraitsMap = new Map<string, Array<{ trait_type: string; value: string }>>();
-      const traitTypeToValues = new Map<string, Map<string, number>>();
+      const tokenTraitsMap: Record<string, Array<{ trait_type: string; value: string }>> = {};
+      const traitTypeToValues: Record<string, Record<string, number>> = {};
 
-      // 1. Attempt to fetch metadata for a subset or all tokens
+      // 1. Attempt to fetch metadata for a subset of tokens
       const sampleIds = tokenIds.slice(0, 40);
 
       await Promise.all(
@@ -116,59 +130,58 @@ export function useCollectionTraits(
               ? attributes.map((a) => ({ trait_type: a.trait_type, value: String(a.value) }))
               : getFallbackTokenTraits(collectionAddress, tId);
 
-          tokenTraitsMap.set(tId, resolvedTraits);
+          tokenTraitsMap[tId] = resolvedTraits;
         }),
       );
 
       // Fill remaining tokens with fallback traits so all tokens have traits
       for (const tId of tokenIds) {
-        if (!tokenTraitsMap.has(tId)) {
-          tokenTraitsMap.set(tId, getFallbackTokenTraits(collectionAddress, tId));
+        if (!tokenTraitsMap[tId]) {
+          tokenTraitsMap[tId] = getFallbackTokenTraits(collectionAddress, tId);
         }
       }
 
       // Aggregate all traits into groups
-      const traitFloorMap = new Map<string, bigint>(); // "traitType:value" -> minPrice
+      const traitFloorMap: Record<string, string> = {}; // "traitType:value" -> minPriceString
 
-      tokenTraitsMap.forEach((traits, tId) => {
-        const itemPrice = listingPriceMap?.get(tId);
+      for (const [tId, traits] of Object.entries(tokenTraitsMap)) {
+        const itemPriceStr = listingPriceMap?.[tId];
 
         for (const t of traits) {
           const type = t.trait_type.trim();
           const val = t.value.trim();
           if (!type || !val) continue;
 
-          if (!traitTypeToValues.has(type)) {
-            traitTypeToValues.set(type, new Map<string, number>());
+          if (!traitTypeToValues[type]) {
+            traitTypeToValues[type] = {};
           }
-          const valMap = traitTypeToValues.get(type)!;
-          valMap.set(val, (valMap.get(val) ?? 0) + 1);
+          traitTypeToValues[type][val] = (traitTypeToValues[type][val] ?? 0) + 1;
 
-          if (itemPrice) {
+          if (itemPriceStr) {
             const key = `${type}:::${val}`;
-            const curMin = traitFloorMap.get(key);
-            if (!curMin || itemPrice < curMin) {
-              traitFloorMap.set(key, itemPrice);
+            const curMin = traitFloorMap[key];
+            if (!curMin || BigInt(itemPriceStr) < BigInt(curMin)) {
+              traitFloorMap[key] = itemPriceStr;
             }
           }
         }
-      });
+      }
 
       const traitGroups: TraitGroup[] = [];
 
-      traitTypeToValues.forEach((valMap, traitType) => {
+      for (const [traitType, valMap] of Object.entries(traitTypeToValues)) {
         const values: TraitValueCount[] = [];
         let totalCount = 0;
 
-        valMap.forEach((count, value) => {
+        for (const [value, count] of Object.entries(valMap)) {
           totalCount += count;
-          const floor = traitFloorMap.get(`${traitType}:::${value}`) ?? null;
+          const floor = traitFloorMap[`${traitType}:::${value}`] ?? null;
           values.push({
             value,
             count,
             floorPrice: floor,
           });
-        });
+        }
 
         // Sort values by count descending
         values.sort((a, b) => b.count - a.count);
@@ -178,7 +191,7 @@ export function useCollectionTraits(
           values,
           totalCount,
         });
-      });
+      }
 
       // Sort trait groups alphabetically
       traitGroups.sort((a, b) => a.traitType.localeCompare(b.traitType));
@@ -187,29 +200,29 @@ export function useCollectionTraits(
       const tokenScores: Array<{ tokenId: string; score: number }> = [];
       const totalTokens = tokenIds.length || 1;
 
-      tokenTraitsMap.forEach((traits, tId) => {
+      for (const [tId, traits] of Object.entries(tokenTraitsMap)) {
         let score = 0;
         for (const t of traits) {
-          const count = traitTypeToValues.get(t.trait_type)?.get(t.value) ?? 1;
+          const count = traitTypeToValues[t.trait_type]?.[t.value] ?? 1;
           score += totalTokens / Math.max(1, count);
         }
         tokenScores.push({ tokenId: tId, score });
-      });
+      }
 
       // Sort tokens by rarity score descending (rarest first)
       tokenScores.sort((a, b) => b.score - a.score);
 
-      const tokenRarityMap = new Map<string, TokenRarity>();
+      const tokenRarityMap: Record<string, TokenRarity> = {};
       tokenScores.forEach((item, idx) => {
         const rank = idx + 1;
         const percentile = Math.max(1, Math.ceil((rank / totalTokens) * 100));
         const label = percentile <= 1 ? "Top 1%" : percentile <= 10 ? `Top ${percentile}%` : `#${rank}`;
-        tokenRarityMap.set(item.tokenId, {
+        tokenRarityMap[item.tokenId] = {
           rank,
           score: item.score,
           percentile,
           label,
-        });
+        };
       });
 
       return {
@@ -219,11 +232,4 @@ export function useCollectionTraits(
       };
     },
   });
-}
-
-export interface TokenRarity {
-  rank: number;
-  score: number;
-  percentile: number;
-  label: string;
 }
