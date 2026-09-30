@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
   ChevronLeft,
   ChevronRight,
   Flame,
@@ -20,8 +22,15 @@ import {
   ExternalLink,
   ShieldCheck,
   Tag,
+  Activity,
+  Zap,
+  Coins,
+  Radio,
+  Clock,
+  CheckCircle2,
+  X,
 } from "lucide-react";
-import { useState, useEffect, useMemo, type FormEvent } from "react";
+import { useState, useEffect, useMemo, useRef, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +53,7 @@ import {
   type SalesResult,
   type CollectionFragment,
   type AuctionFragment,
+  type SaleFragment,
 } from "@/indexer/queries";
 import { DEFAULT_REFETCH_MS, SLOW_REFETCH_MS, unixNowSeconds } from "@/indexer/events";
 import { COLLECTION_CATEGORIES, getCategoryById, formatCategoryLabel, type CategoryOption } from "@/lib/categories";
@@ -52,6 +62,22 @@ import { cn } from "@/lib/utils";
 import { useMarketplaceConfig } from "@/hooks/useMarketplaceConfig";
 
 const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function shortAddr(addr?: string | null): string {
+  if (!addr) return "";
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function formatRelativeTime(timestampSec: number): string {
+  const diffSec = Math.max(0, Math.floor(Date.now() / 1000 - timestampSec));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -74,29 +100,21 @@ const QUICK_FILTER_CATEGORIES = [
 
 const TIMEFRAMES = ["1h", "6h", "24h", "7d", "All"] as const;
 
-function formatTimeLeft(endTime: string): string {
-  const diff = Number(endTime) * 1000 - Date.now();
-  if (diff <= 0) return "Expired";
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  if (d > 0) return `${d}d ${h}h left`;
-  const m = Math.floor((diff % 3600000) / 60000);
-  return `${h}h ${m}m left`;
-}
-
 function HomePage() {
   const navigate = useNavigate();
   const { platformFeePercent } = useMarketplaceConfig();
   const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [leaderboardTab, setLeaderboardTab] = useState<"trending" | "top">("trending");
   const [selectedTimeframe, setSelectedTimeframe] = useState<typeof TIMEFRAMES[number]>("24h");
   const [heroSlide, setHeroSlide] = useState(0);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Query 1: Collections
   const { data: collectionsData, isLoading: collectionsLoading } = useQuery({
     queryKey: ["home-collections"],
-    queryFn: () => gqlClient.request<CollectionsResult>(GET_COLLECTIONS, { first: 20, skip: 0 }),
+    queryFn: () => gqlClient.request<CollectionsResult>(GET_COLLECTIONS, { first: 30, skip: 0 }),
     refetchInterval: SLOW_REFETCH_MS,
     staleTime: SLOW_REFETCH_MS,
   });
@@ -115,7 +133,7 @@ function HomePage() {
     refetchInterval: DEFAULT_REFETCH_MS,
   });
 
-  // Query 4: Recent Marketplace Sales (for volume calculations)
+  // Query 4: Recent Marketplace Sales (for volume and momentum metrics)
   const { data: salesData } = useQuery({
     queryKey: ["home-sales"],
     queryFn: () => gqlClient.request<SalesResult>(GET_SALES, { first: 100, skip: 0 }),
@@ -126,26 +144,66 @@ function HomePage() {
   const collections = collectionsData?.collections ?? [];
   const listings = listingsData?.listings ?? [];
   const auctions = auctionsData?.auctions ?? [];
+  const sales = salesData?.sales ?? [];
   const { data: metaMap } = useCollectionsMeta(collections.map((col) => col.id));
 
-  // Compute collection counts per category
-  const categoryCountMap = useMemo(() => {
-    const counts: Record<string, number> = {};
-    if (!metaMap) return counts;
-    for (const col of collections) {
-      const meta = metaMap[col.id];
-      if (meta?.categories && Array.isArray(meta.categories)) {
-        for (const c of meta.categories) {
-          counts[c] = (counts[c] || 0) + 1;
-        }
+  // Compute Global Marketplace Totals for Stats Ribbon
+  const { totalMarketplaceVolumeWei, volume24hWei, sales24hCount, totalSalesCount } = useMemo(() => {
+    let totalVol = 0n;
+    let vol24 = 0n;
+    let count24 = 0;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const dayAgo = nowSec - 86400;
+
+    for (const sale of sales) {
+      if (sale.paymentToken !== ETH_ADDRESS) continue;
+      const p = BigInt(sale.price);
+      totalVol += p;
+      const ts = Number(sale.timestamp || "0");
+      if (ts >= dayAgo) {
+        vol24 += p;
+        count24 += 1;
       }
     }
-    return counts;
-  }, [collections, metaMap]);
 
-  // Compute live Floor Price and Volume per collection
+    return {
+      totalMarketplaceVolumeWei: totalVol,
+      volume24hWei: vol24,
+      sales24hCount: count24,
+      totalSalesCount: sales.length,
+    };
+  }, [sales]);
+
+  // Compute Timeframe Cutoffs for Leaderboard Calculations
+  const { timeframeCutoffSec, prevTimeframeCutoffSec } = useMemo(() => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    let durationSec = 86400; // default 24h
+    if (selectedTimeframe === "1h") durationSec = 3600;
+    else if (selectedTimeframe === "6h") durationSec = 21600;
+    else if (selectedTimeframe === "24h") durationSec = 86400;
+    else if (selectedTimeframe === "7d") durationSec = 604800;
+    else if (selectedTimeframe === "All") durationSec = 0;
+
+    const cutoff = durationSec > 0 ? nowSec - durationSec : 0;
+    const prevCutoff = durationSec > 0 ? nowSec - durationSec * 2 : 0;
+    return { timeframeCutoffSec: cutoff, prevTimeframeCutoffSec: prevCutoff };
+  }, [selectedTimeframe]);
+
+  // Compute Live Floor Price, Timeframe Volume & % Changes per collection
   const collectionStatsMap = useMemo(() => {
-    const map: Record<string, { floorWei: bigint | null; volumeWei: bigint }> = {};
+    const map: Record<
+      string,
+      {
+        floorWei: bigint | null;
+        totalVolumeWei: bigint;
+        timeframeVolumeWei: bigint;
+        prevTimeframeVolumeWei: bigint;
+        timeframeSalesCount: number;
+        volumeChangePercent: number | null;
+        prevFloorWei: bigint | null;
+        floorChangePercent: number | null;
+      }
+    > = {};
 
     // 1. Calculate floor from active listings
     for (const listing of listings) {
@@ -153,26 +211,80 @@ function HomePage() {
       if (!colId || listing.paymentToken !== ETH_ADDRESS) continue;
       const price = BigInt(listing.pricePerItem);
       if (!map[colId]) {
-        map[colId] = { floorWei: price, volumeWei: 0n };
+        map[colId] = {
+          floorWei: price,
+          totalVolumeWei: 0n,
+          timeframeVolumeWei: 0n,
+          prevTimeframeVolumeWei: 0n,
+          timeframeSalesCount: 0,
+          volumeChangePercent: null,
+          prevFloorWei: null,
+          floorChangePercent: null,
+        };
       } else if (map[colId].floorWei === null || price < map[colId].floorWei!) {
         map[colId].floorWei = price;
       }
     }
 
-    // 2. Calculate volume from completed sales
-    for (const sale of salesData?.sales ?? []) {
+    // 2. Calculate volume and timeframe metrics from completed sales
+    for (const sale of sales) {
       const colId = sale.collection?.id?.toLowerCase();
       if (!colId || sale.paymentToken !== ETH_ADDRESS) continue;
       const price = BigInt(sale.price);
+      const saleTs = Number(sale.timestamp || "0");
+
       if (!map[colId]) {
-        map[colId] = { floorWei: null, volumeWei: price };
+        map[colId] = {
+          floorWei: null,
+          totalVolumeWei: price,
+          timeframeVolumeWei: 0n,
+          prevTimeframeVolumeWei: 0n,
+          timeframeSalesCount: 0,
+          volumeChangePercent: null,
+          prevFloorWei: null,
+          floorChangePercent: null,
+        };
       } else {
-        map[colId].volumeWei += price;
+        map[colId].totalVolumeWei += price;
+      }
+
+      // Check timeframe window
+      if (saleTs >= timeframeCutoffSec) {
+        map[colId].timeframeVolumeWei += price;
+        map[colId].timeframeSalesCount += 1;
+      } else if (timeframeCutoffSec > 0 && saleTs >= prevTimeframeCutoffSec) {
+        map[colId].prevTimeframeVolumeWei += price;
+        if (map[colId].prevFloorWei === null || price < map[colId].prevFloorWei!) {
+          map[colId].prevFloorWei = price;
+        }
+      }
+    }
+
+    // 3. Compute volume percentage changes and floor price % changes
+    for (const colId of Object.keys(map)) {
+      const s = map[colId];
+      if (timeframeCutoffSec === 0) {
+        s.timeframeVolumeWei = s.totalVolumeWei;
+        s.volumeChangePercent = null;
+      } else if (s.prevTimeframeVolumeWei > 0n) {
+        const curr = Number(s.timeframeVolumeWei);
+        const prev = Number(s.prevTimeframeVolumeWei);
+        s.volumeChangePercent = Math.round(((curr - prev) / prev) * 100);
+      } else if (s.timeframeVolumeWei > 0n) {
+        s.volumeChangePercent = 100;
+      } else {
+        s.volumeChangePercent = 0;
+      }
+      // Floor price % change: current floor vs prev timeframe min sale price
+      if (s.floorWei !== null && s.prevFloorWei !== null && s.prevFloorWei > 0n) {
+        const currFloor = Number(s.floorWei);
+        const prevFloor = Number(s.prevFloorWei);
+        s.floorChangePercent = Math.round(((currFloor - prevFloor) / prevFloor) * 100);
       }
     }
 
     return map;
-  }, [listings, salesData]);
+  }, [listings, sales, timeframeCutoffSec, prevTimeframeCutoffSec]);
 
   // Filter collections based on active quick filter category
   const filteredCollections = useMemo(() => {
@@ -205,9 +317,34 @@ function HomePage() {
     return () => clearInterval(interval);
   }, [heroCount]);
 
+  // Autocomplete matching collections
+  const autocompleteCollections = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return collections
+      .filter((col) => {
+        const meta = metaMap?.[col.id];
+        const name = (meta?.name || col.id).toLowerCase();
+        return name.includes(q) || col.id.toLowerCase().includes(q);
+      })
+      .slice(0, 5);
+  }, [search, collections, metaMap]);
+
+  // Click outside to close search autocomplete
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchFocused(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   function goSearch(event: FormEvent) {
     event.preventDefault();
     const q = search.trim();
+    setSearchFocused(false);
     void navigate({ to: "/explore", search: q ? { q } : { q: undefined } });
   }
 
@@ -219,8 +356,8 @@ function HomePage() {
       if (leaderboardTab === "trending") {
         return (b.activeListingCount + b.activeAuctionCount) - (a.activeListingCount + a.activeAuctionCount);
       }
-      const aVol = aStats?.volumeWei ?? 0n;
-      const bVol = bStats?.volumeWei ?? 0n;
+      const aVol = aStats?.timeframeVolumeWei ?? 0n;
+      const bVol = bStats?.timeframeVolumeWei ?? 0n;
       if (bVol !== aVol) {
         return bVol > aVol ? 1 : -1;
       }
@@ -240,6 +377,70 @@ function HomePage() {
   return (
     <Shell>
       <main className="min-h-screen bg-background">
+        {/* ─── 0. GLOBAL MARKETPLACE STATS RIBBON ───────────────────────────── */}
+        <section className="border-b border-border bg-card/70 py-2 text-xs backdrop-blur">
+          <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 sm:px-8 lg:px-14">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-semibold text-foreground">Base Sepolia</span>
+              </div>
+              <span className="text-border">|</span>
+              <div>
+                Total Volume: <b className="text-foreground">{formatEthCompact(totalMarketplaceVolumeWei)}</b>
+              </div>
+              <span className="hidden text-border sm:inline">|</span>
+              <div className="hidden sm:block">
+                24h Volume: <b className="text-foreground">{formatEthCompact(volume24hWei)}</b>
+              </div>
+              <span className="hidden text-border md:inline">|</span>
+              <div className="hidden md:block">
+                Sales (24h): <b className="text-foreground">{sales24hCount}</b>
+              </div>
+              <span className="hidden text-border lg:inline">|</span>
+              <div className="hidden lg:block">
+                Collections: <b className="text-foreground">{collections.length}</b>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                {platformFeePercent === "0%" ? "0% Fee Marketplace" : `${platformFeePercent} Marketplace Fee`}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── LIVE SALES TICKER ───────────────────────────────────────────── */}
+        {sales.length > 0 && (
+          <section className="border-b border-border/80 bg-background/50 overflow-hidden py-2 text-xs">
+            <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 sm:px-8 lg:px-14">
+              <div className="flex shrink-0 items-center gap-1.5 font-bold uppercase tracking-wider text-primary text-[10px]">
+                <Activity className="size-3.5 animate-pulse" /> Live Activity
+              </div>
+              <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 text-xs">
+                {sales.slice(0, 8).map((sale) => {
+                  const meta = sale.collection?.id ? metaMap?.[sale.collection.id] : null;
+                  const colName = meta?.name || shortAddr(sale.collection?.id);
+                  const price = formatEthCompact(BigInt(sale.price));
+                  return (
+                    <Link
+                      key={sale.id}
+                      to="/nfts/$id"
+                      params={{ id: `${sale.collection?.id}-${sale.tokenId}` }}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-1 text-muted-foreground transition hover:border-primary/50 hover:bg-card hover:text-foreground"
+                    >
+                      <span className="font-semibold text-foreground">{colName} #{sale.tokenId}</span>
+                      <span className="font-bold text-primary">{price}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatRelativeTime(Number(sale.timestamp || "0"))}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ─── 1. SPOTLIGHT HERO DROP CAROUSEL ──────────────────────────────── */}
         <section className="relative overflow-hidden border-b border-border bg-card/40">
           {/* Ambient Glow & Backdrop */}
@@ -275,23 +476,76 @@ function HomePage() {
                   The premier decentralized NFT marketplace built on Base Sepolia. Explore verified drops, participate in live anti-sniping auctions, and trade with {platformFeePercent === "0%" ? "0%" : platformFeePercent} marketplace fees.
                 </p>
 
-                {/* Hero Search Box */}
-                <form onSubmit={goSearch} className="relative mt-6 max-w-xl">
-                  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search collections, items, or creators..."
-                    className="h-12 rounded-xl border-border bg-card/80 backdrop-blur pl-10 pr-24 text-sm shadow-md transition-all focus:ring-2 focus:ring-primary/30"
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 px-4 rounded-lg text-xs"
-                  >
-                    Search
-                  </Button>
-                </form>
+                {/* Hero Search Box with Autocomplete */}
+                <div ref={searchContainerRef} className="relative mt-6 max-w-xl">
+                  <form onSubmit={goSearch} className="relative">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onFocus={() => setSearchFocused(true)}
+                      placeholder="Search collections, items, or creators..."
+                      className="h-12 rounded-xl border-border bg-card/80 backdrop-blur pl-10 pr-24 text-sm shadow-md transition-all focus:ring-2 focus:ring-primary/30"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 px-4 rounded-lg text-xs"
+                    >
+                      Search
+                    </Button>
+                  </form>
+
+                  {/* Autocomplete Dropdown */}
+                  {searchFocused && autocompleteCollections.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-border bg-card/95 p-2 shadow-2xl backdrop-blur">
+                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Matching Collections
+                      </div>
+                      <div className="divide-y divide-border/60">
+                        {autocompleteCollections.map((col) => {
+                          const meta = metaMap?.[col.id];
+                          const name = meta?.name || `Collection ${shortAddr(col.id)}`;
+                          const logo = meta?.logo_url || null;
+                          const stats = collectionStatsMap[col.id.toLowerCase()];
+                          return (
+                            <Link
+                              key={col.id}
+                              to="/collections/$slug"
+                              params={{ slug: col.id }}
+                              onClick={() => setSearchFocused(false)}
+                              className="flex items-center justify-between gap-3 p-2 rounded-lg transition hover:bg-muted"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="size-8 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
+                                  {logo ? (
+                                    <IpfsImg uri={logo} alt="" className="size-full object-cover" />
+                                  ) : (
+                                    <div className="size-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                                      {name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-semibold text-foreground flex items-center gap-1">
+                                    {name} {col.verified && <Verified />}
+                                  </p>
+                                  <span className="text-[10px] text-muted-foreground">{col.activeListingCount} listed</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] text-muted-foreground block">Floor</span>
+                                <span className="font-mono text-xs font-bold text-primary">
+                                  {stats?.floorWei ? formatEthCompact(stats.floorWei) : "—"}
+                                </span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Action CTAs */}
                 <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -385,7 +639,7 @@ function HomePage() {
                         <div>
                           <p className="text-[10px] uppercase font-semibold text-muted-foreground">Total Volume</p>
                           <p className="mt-0.5 font-display text-xs font-bold text-foreground">
-                            {currentHeroStats?.volumeWei && currentHeroStats.volumeWei > 0n ? formatEthCompact(currentHeroStats.volumeWei) : "—"}
+                            {currentHeroStats?.totalVolumeWei && currentHeroStats.totalVolumeWei > 0n ? formatEthCompact(currentHeroStats.totalVolumeWei) : "—"}
                           </p>
                         </div>
                         <div>
@@ -433,7 +687,7 @@ function HomePage() {
                         variant="outline"
                         size="icon"
                         className="size-7 rounded-full"
-                      onClick={() => setHeroSlide((prev) => (prev + 1) % heroCount)}
+                        onClick={() => setHeroSlide((prev) => (prev + 1) % heroCount)}
                       >
                         <ChevronRight className="size-3.5" />
                       </Button>
@@ -545,11 +799,11 @@ function HomePage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
               {/* Left Column (Ranks 1 to 5) */}
               <div className="space-y-1">
-                <div className="grid grid-cols-[32px_1fr_100px_90px] items-center px-3 py-1.5 text-[11px] font-semibold uppercase text-muted-foreground">
+                <div className="grid grid-cols-[32px_1fr_90px_110px] items-center px-3 py-1.5 text-[11px] font-semibold uppercase text-muted-foreground">
                   <span>#</span>
                   <span>Collection</span>
                   <span className="text-right">Floor Price</span>
-                  <span className="text-right">Volume</span>
+                  <span className="text-right">Volume ({selectedTimeframe})</span>
                 </div>
                 {leftRankings.map((col, idx) => (
                   <LeaderboardRow
@@ -557,19 +811,18 @@ function HomePage() {
                     rank={idx + 1}
                     col={col}
                     meta={metaMap?.[col.id]}
-                    floorWei={collectionStatsMap[col.id.toLowerCase()]?.floorWei}
-                    volumeWei={collectionStatsMap[col.id.toLowerCase()]?.volumeWei}
+                    stats={collectionStatsMap[col.id.toLowerCase()]}
                   />
                 ))}
               </div>
 
               {/* Right Column (Ranks 6 to 10) */}
               <div className="space-y-1">
-                <div className="grid grid-cols-[32px_1fr_100px_90px] items-center px-3 py-1.5 text-[11px] font-semibold uppercase text-muted-foreground">
+                <div className="grid grid-cols-[32px_1fr_90px_110px] items-center px-3 py-1.5 text-[11px] font-semibold uppercase text-muted-foreground">
                   <span>#</span>
                   <span>Collection</span>
                   <span className="text-right">Floor Price</span>
-                  <span className="text-right">Volume</span>
+                  <span className="text-right">Volume ({selectedTimeframe})</span>
                 </div>
                 {rightRankings.map((col, idx) => (
                   <LeaderboardRow
@@ -577,8 +830,7 @@ function HomePage() {
                     rank={idx + 6}
                     col={col}
                     meta={metaMap?.[col.id]}
-                    floorWei={collectionStatsMap[col.id.toLowerCase()]?.floorWei}
-                    volumeWei={collectionStatsMap[col.id.toLowerCase()]?.volumeWei}
+                    stats={collectionStatsMap[col.id.toLowerCase()]}
                   />
                 ))}
               </div>
@@ -660,7 +912,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── 6. LIVE AUCTIONS SECTION ────────────────────────────────────── */}
+        {/* ─── 6. LIVE AUCTIONS SECTION (WITH TICKING SECONDS) ──────────────── */}
         {auctions.length > 0 && (
           <section className="border-t border-border py-12 sm:py-16 bg-background">
             <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
@@ -752,7 +1004,113 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── 8. CREATOR LAUNCHPAD CTA BANNER ─────────────────────────────── */}
+        {/* ─── 8. WHY ZENKAIHOOD: TRUST & ECOSYSTEM ADVANTAGES ──────────────── */}
+        <section className="border-t border-border bg-card/30 py-16 sm:py-20">
+          <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
+            <div className="mx-auto max-w-3xl text-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <ShieldCheck className="size-3.5" /> Next-Gen Marketplace Architecture
+              </span>
+              <h2 className="mt-4 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Engineered for Fair, Safe &amp; Low-Cost Trading
+              </h2>
+              <p className="mt-3 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Zenkaihood combines battle-tested smart contract infrastructure with modern Layer-2 scalability on Base Sepolia.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Feature 1 */}
+              <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+                <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 mb-4">
+                  <Gavel className="size-6" />
+                </div>
+                <h3 className="font-display text-base font-bold text-foreground">
+                  Anti-Sniping Live Auctions
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  Smart contracts automatically extend auctions by 5 minutes whenever a bid lands in the final 5 minutes, stopping MEV bots and guaranteeing fair discovery.
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-amber-500">
+                  <span>+5m Auto Extension</span>
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+                <div className="flex size-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-4">
+                  <Zap className="size-6" />
+                </div>
+                <h3 className="font-display text-base font-bold text-foreground">
+                  Sub-Cent Gas on Base L2
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  Built natively on Base Sepolia Ethereum L2. Execute listings, bulk cart sweeps, and instant offer executions with sub-second finality and near-zero gas costs.
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-blue-400">
+                  <span>Sub-second Finality</span>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+                <div className="flex size-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-4">
+                  <Coins className="size-6" />
+                </div>
+                <h3 className="font-display text-base font-bold text-foreground">
+                  Non-Custodial Escrow
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  All offer and auction bids are secured in audited on-chain escrow contracts. Cancel active offers or reclaim outbid funds at any time with 1-click self-custody refunds.
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                  <span>100% Self-Custodial</span>
+                </div>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+                <div className="flex size-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 mb-4">
+                  <Crown className="size-6" />
+                </div>
+                <h3 className="font-display text-base font-bold text-foreground">
+                  Enforced Creator Royalties
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  Protocol-level support for EIP-2981 royalty standards across both ERC-721 and ERC-1155 tokens. Creators receive instant split payouts on every secondary sale.
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-purple-400">
+                  <span>EIP-2981 Multi-Standard</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Protocol Security & Trust Badges Strip */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-6 rounded-2xl border border-border/80 bg-background/60 p-4 text-xs font-medium text-muted-foreground backdrop-blur">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+                <span>Verified Bytecode on BaseScan</span>
+              </div>
+              <span className="hidden sm:inline text-border">·</span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+                <span>Zero Custodial Risk</span>
+              </div>
+              <span className="hidden sm:inline text-border">·</span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+                <span>Decentralized GraphQL Subgraph</span>
+              </div>
+              <span className="hidden sm:inline text-border">·</span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+                <span>{platformFeePercent === "0%" ? "0% Platform Trading Fees" : `${platformFeePercent} Low Platform Fee`}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── 9. CREATOR LAUNCHPAD CTA BANNER ─────────────────────────────── */}
         <section className="border-t border-border bg-gradient-to-b from-card/60 to-background py-16">
           <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
             <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-8 sm:p-12 shadow-xl">
@@ -793,29 +1151,38 @@ function HomePage() {
   );
 }
 
-// ─── Leaderboard Row Component (OpenSea Style) ───────────────────────────────
+// ─── Leaderboard Row Component (OpenSea Style with % Change) ─────────────────
 
 function LeaderboardRow({
   rank,
   col,
   meta,
-  floorWei,
-  volumeWei,
+  stats,
 }: {
   rank: number;
   col: CollectionFragment;
   meta: any;
-  floorWei?: bigint | null;
-  volumeWei?: bigint;
+  stats?: {
+    floorWei: bigint | null;
+    totalVolumeWei: bigint;
+    timeframeVolumeWei: bigint;
+    timeframeSalesCount: number;
+    volumeChangePercent: number | null;
+    floorChangePercent: number | null;
+  };
 }) {
   const name = meta?.name?.trim() || `Collection ${col.id.slice(0, 6)}…`;
   const logoSrc = meta?.logo_url || meta?.logoURI || null;
+  const floorWei = stats?.floorWei;
+  const volumeWei = stats?.timeframeVolumeWei ?? stats?.totalVolumeWei;
+  const changePct = stats?.volumeChangePercent;
+  const floorChangePct = stats?.floorChangePercent;
 
   return (
     <Link
       to="/collections/$slug"
       params={{ slug: col.id }}
-      className="grid grid-cols-[32px_1fr_100px_90px] items-center rounded-xl p-2.5 transition-colors hover:bg-card/80 border border-transparent hover:border-border"
+      className="grid grid-cols-[32px_1fr_90px_110px] items-center rounded-xl p-2.5 transition-colors hover:bg-card/80 border border-transparent hover:border-border"
     >
       {/* Rank */}
       <span className="font-display text-xs font-bold text-muted-foreground">{rank}</span>
@@ -836,30 +1203,58 @@ function LeaderboardRow({
             {name}
             {col.verified && <Verified />}
           </p>
-          <span className="text-[10px] text-muted-foreground">
-            {col.activeListingCount} listed
-          </span>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span>{col.activeListingCount} listed</span>
+            {stats && stats.timeframeSalesCount > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-emerald-500 font-medium">{stats.timeframeSalesCount} sales</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Floor Price */}
       <div className="text-right">
-        <span className="font-mono text-xs font-semibold text-foreground">
+        <span className="font-mono text-xs font-semibold text-foreground block">
           {floorWei ? formatEthCompact(floorWei) : "—"}
         </span>
+        {floorChangePct !== undefined && floorChangePct !== null && floorChangePct !== 0 && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 text-[10px] font-bold font-mono",
+              floorChangePct > 0 ? "text-emerald-500" : "text-rose-500"
+            )}
+          >
+            {floorChangePct > 0 ? <ArrowUpRight className="size-2.5" /> : <ArrowDownRight className="size-2.5" />}
+            {floorChangePct > 0 ? `+${floorChangePct}%` : `${floorChangePct}%`}
+          </span>
+        )}
       </div>
 
-      {/* Volume */}
+      {/* Volume & % Change */}
       <div className="text-right">
-        <span className="font-mono text-xs font-semibold text-foreground">
+        <span className="font-mono text-xs font-semibold text-foreground block">
           {volumeWei && volumeWei > 0n ? formatEthCompact(volumeWei) : "—"}
         </span>
+        {changePct !== undefined && changePct !== null && changePct !== 0 && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 text-[10px] font-bold font-mono",
+              changePct > 0 ? "text-emerald-500" : "text-rose-500"
+            )}
+          >
+            {changePct > 0 ? <ArrowUpRight className="size-2.5" /> : <ArrowDownRight className="size-2.5" />}
+            {changePct > 0 ? `+${changePct}%` : `${changePct}%`}
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-// ─── Home Auction Tile Component ─────────────────────────────────────────────
+// ─── Home Auction Tile Component with Live Seconds Countdown ─────────────────
 
 function HomeAuctionTile({
   auction,
@@ -872,9 +1267,45 @@ function HomeAuctionTile({
   const tokenId = auction.tokenId || "";
   const { imageUri, name } = useTokenMetadata(collectionAddress, tokenId);
   const endTimeStr = auction.endTime || "0";
+  const endTimeNum = Number(endTimeStr);
   const highestBidVal = BigInt(auction.highestBid || "0");
   const reservePriceVal = BigInt(auction.reservePrice || "0");
   const hasBids = highestBidVal > 0n;
+
+  // Live ticking countdown
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const diff = Math.max(0, endTimeNum * 1000 - Date.now());
+    return {
+      ms: diff,
+      isEnded: diff <= 0,
+      isEndingSoon: diff > 0 && diff < 5 * 60 * 1000,
+    };
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const diff = Math.max(0, endTimeNum * 1000 - Date.now());
+      setTimeLeft({
+        ms: diff,
+        isEnded: diff <= 0,
+        isEndingSoon: diff > 0 && diff < 5 * 60 * 1000,
+      });
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [endTimeNum]);
+
+  const formattedTimer = useMemo(() => {
+    if (timeLeft.ms <= 0) return "Auction Ended";
+    const totalSec = Math.floor(timeLeft.ms / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (d > 0) return `${d}d ${h}h ${m}m left`;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }, [timeLeft.ms]);
 
   return (
     <div
@@ -900,8 +1331,16 @@ function HomeAuctionTile({
             <Gavel className="size-2.5" /> Live Auction
           </span>
 
-          <span className="absolute bottom-2 left-2 rounded-full bg-background/80 backdrop-blur px-2 py-0.5 text-[9px] font-medium text-muted-foreground">
-            {formatTimeLeft(endTimeStr)}
+          <span
+            className={cn(
+              "absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-[9px] font-mono font-medium backdrop-blur shadow-sm flex items-center gap-1",
+              timeLeft.isEndingSoon
+                ? "bg-rose-500/90 text-white animate-pulse"
+                : "bg-background/80 text-muted-foreground"
+            )}
+          >
+            <Clock className="size-2.5" />
+            {formattedTimer}
           </span>
         </div>
 
@@ -913,7 +1352,7 @@ function HomeAuctionTile({
             <span className="text-[10px] text-muted-foreground">
               {hasBids ? "Highest Bid" : "Reserve"}
             </span>
-            <span className="font-semibold text-foreground">
+            <span className="font-semibold text-foreground font-mono">
               {formatEthCompact(hasBids ? highestBidVal : reservePriceVal)}
             </span>
           </div>
@@ -929,7 +1368,7 @@ function HomeAuctionTile({
           minBid={((highestBidVal || 10n ** 15n) * 105n) / 100n}
           endsAt={BigInt(endTimeStr)}
           label="Place Bid"
-          className="w-full text-[10px] h-7 bg-primary text-primary-foreground hover:bg-primary/90"
+          className="w-full text-[10px] h-7 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
         />
       </div>
     </div>
