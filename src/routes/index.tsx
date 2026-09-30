@@ -411,35 +411,47 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── LIVE SALES TICKER ───────────────────────────────────────────── */}
-        {sales.length > 0 && (
-          <section className="border-b border-border/80 bg-background/50 overflow-hidden py-2 text-xs">
-            <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 sm:px-8 lg:px-14">
-              <div className="flex shrink-0 items-center gap-1.5 font-bold uppercase tracking-wider text-primary text-[10px]">
-                <Activity className="size-3.5 animate-pulse" /> Live Activity
+        {/* ─── LIVE SALES TICKER (CSS Marquee) ─────────────────────────────── */}
+        {sales.length > 0 && (() => {
+          const tickerItems = sales.slice(0, 10).map((sale) => {
+            const meta = sale.collection?.id ? metaMap?.[sale.collection.id] : null;
+            const colName = meta?.name || shortAddr(sale.collection?.id);
+            const price = formatEthCompact(BigInt(sale.price));
+            return (
+              <Link
+                key={sale.id}
+                to="/nfts/$id"
+                params={{ id: `${sale.collection?.id}-${sale.tokenId}` }}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-1 mx-2 text-muted-foreground transition hover:border-primary/50 hover:bg-card hover:text-foreground"
+              >
+                <span className="font-semibold text-foreground">{colName} #{sale.tokenId}</span>
+                <span className="font-bold text-primary">{price}</span>
+                <span className="text-[10px] text-muted-foreground">{formatRelativeTime(Number(sale.timestamp || "0"))}</span>
+              </Link>
+            );
+          });
+          return (
+            <section className="border-b border-border/80 bg-background/50 overflow-hidden py-2 text-xs">
+              <div className="flex items-center gap-3">
+                {/* Pinned label */}
+                <div className="flex shrink-0 items-center gap-1.5 font-bold uppercase tracking-wider text-primary text-[10px] pl-4 sm:pl-8 lg:pl-14">
+                  <Activity className="size-3.5 animate-pulse" /> Live
+                </div>
+                {/* Seamless marquee track — items duplicated for infinite loop */}
+                <div className="flex-1 overflow-hidden">
+                  <div className="ticker-track items-center gap-0 py-0.5">
+                    {tickerItems}
+                    {/* Duplicate for seamless loop */}
+                    {tickerItems.map((item, i) =>
+                      <span key={`dup-${i}`}>{item}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 text-xs">
-                {sales.slice(0, 8).map((sale) => {
-                  const meta = sale.collection?.id ? metaMap?.[sale.collection.id] : null;
-                  const colName = meta?.name || shortAddr(sale.collection?.id);
-                  const price = formatEthCompact(BigInt(sale.price));
-                  return (
-                    <Link
-                      key={sale.id}
-                      to="/nfts/$id"
-                      params={{ id: `${sale.collection?.id}-${sale.tokenId}` }}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-1 text-muted-foreground transition hover:border-primary/50 hover:bg-card hover:text-foreground"
-                    >
-                      <span className="font-semibold text-foreground">{colName} #{sale.tokenId}</span>
-                      <span className="font-bold text-primary">{price}</span>
-                      <span className="text-[10px] text-muted-foreground">{formatRelativeTime(Number(sale.timestamp || "0"))}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
+            </section>
+          );
+        })()}
+
 
         {/* ─── 1. SPOTLIGHT HERO DROP CAROUSEL ──────────────────────────────── */}
         <section className="relative overflow-hidden border-b border-border bg-card/40">
@@ -838,7 +850,7 @@ function HomePage() {
           )}
         </section>
 
-        {/* ─── 4. NOTABLE COLLECTIONS SHOWCASE ─────────────────────────────── */}
+        {/* ─── 4. NOTABLE COLLECTIONS SHOWCASE (Carousel) ───────────────────── */}
         <section className="border-t border-border bg-card/20 py-12 sm:py-16">
           <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
             <div className="flex items-center justify-between mb-6">
@@ -850,29 +862,61 @@ function HomePage() {
                   Explore top community registered collections on Base Sepolia
                 </p>
               </div>
-              <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs text-primary">
-                <Link to="/explore">
-                  Explore all <ArrowRight className="size-3.5" />
-                </Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline" size="icon"
+                  className="size-8 rounded-full"
+                  onClick={() => {
+                    document.getElementById("notable-carousel")?.scrollBy({ left: -320, behavior: "smooth" });
+                  }}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  variant="outline" size="icon"
+                  className="size-8 rounded-full"
+                  onClick={() => {
+                    document.getElementById("notable-carousel")?.scrollBy({ left: 320, behavior: "smooth" });
+                  }}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs text-primary">
+                  <Link to="/explore">
+                    Explore all <ArrowRight className="size-3.5" />
+                  </Link>
+                </Button>
+              </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {collectionsLoading
-                ? Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="aspect-[1.3] animate-pulse rounded-2xl bg-muted" />
-                  ))
-                : filteredCollections.slice(0, 8).map((col, index) => (
-                    <CollectionPreviewCard
-                      key={col.id}
-                      col={col}
-                      meta={metaMap?.[col.id]}
-                      index={index}
-                    />
-                  ))}
+            {/* Carousel track */}
+            <div className="relative">
+              {/* Fade edges */}
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-card/80 to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-card/80 to-transparent" />
+
+              <div
+                id="notable-carousel"
+                className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-2"
+              >
+                {collectionsLoading
+                  ? Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="w-64 shrink-0 aspect-[1.3] animate-pulse rounded-2xl bg-muted" />
+                    ))
+                  : filteredCollections.slice(0, 12).map((col, index) => (
+                      <div key={col.id} className="w-64 shrink-0">
+                        <CollectionPreviewCard
+                          col={col}
+                          meta={metaMap?.[col.id]}
+                          index={index}
+                        />
+                      </div>
+                    ))}
+              </div>
             </div>
           </div>
         </section>
+
 
         {/* ─── 5. TRENDING ITEMS / FEATURED LISTINGS ────────────────────────── */}
         <section className="border-t border-border bg-card/10 py-12 sm:py-16">
@@ -941,7 +985,7 @@ function HomePage() {
           </section>
         )}
 
-        {/* ─── 7. BROWSE BY CATEGORY / REGISTERED COLLECTIONS ───────────────── */}
+        {/* ─── 7. BROWSE BY CATEGORY / REGISTERED COLLECTIONS (Carousel) ────── */}
         <section className="border-t border-border py-12 sm:py-16 bg-background">
           <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
@@ -953,30 +997,59 @@ function HomePage() {
                   Explore registered collections curated with creator categories on Base Sepolia
                 </p>
               </div>
-              <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs text-primary self-start sm:self-auto">
-                <Link to="/explore">
-                  Explore all in marketplace <ArrowRight className="size-3.5" />
-                </Link>
-              </Button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <Button
+                  variant="outline" size="icon"
+                  className="size-8 rounded-full"
+                  onClick={() => {
+                    document.getElementById("category-carousel")?.scrollBy({ left: -320, behavior: "smooth" });
+                  }}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  variant="outline" size="icon"
+                  className="size-8 rounded-full"
+                  onClick={() => {
+                    document.getElementById("category-carousel")?.scrollBy({ left: 320, behavior: "smooth" });
+                  }}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs text-primary">
+                  <Link to="/explore">
+                    Explore all <ArrowRight className="size-3.5" />
+                  </Link>
+                </Button>
+              </div>
             </div>
 
-            {/* Registered Collections Grid */}
+            {/* Carousel track */}
             {collectionsLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="aspect-[1.3] animate-pulse rounded-2xl bg-muted" />
+              <div className="flex gap-4 overflow-hidden">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="w-64 shrink-0 aspect-[1.3] animate-pulse rounded-2xl bg-muted" />
                 ))}
               </div>
             ) : categorizedCollections.length > 0 ? (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {categorizedCollections.map((col, index) => (
-                  <CollectionPreviewCard
-                    key={col.id}
-                    col={col}
-                    meta={metaMap?.[col.id]}
-                    index={index}
-                  />
-                ))}
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-background to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-background to-transparent" />
+
+                <div
+                  id="category-carousel"
+                  className="flex gap-5 overflow-x-auto no-scrollbar scroll-smooth pb-2"
+                >
+                  {categorizedCollections.map((col, index) => (
+                    <div key={col.id} className="w-64 shrink-0">
+                      <CollectionPreviewCard
+                        col={col}
+                        meta={metaMap?.[col.id]}
+                        index={index}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 p-12 text-center">

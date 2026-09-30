@@ -225,3 +225,13 @@
 @media (min-width: 640px) { .page-section { padding: 1.6rem 2rem; } }
 @media (min-width: 1024px) { .page-section { padding: 1.6rem 3.5rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+  
+@keyframes marquee {  
+  from { transform: translateX(0); }  
+  to   { transform: translateX(-50%); }  
+}  
+  
+@utility ticker-track {  
+  display: flex; width: max-content;  
+  animation: marquee 35s linear infinite;  
+} 
