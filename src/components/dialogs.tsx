@@ -3,6 +3,7 @@
  * All buy/offer/sell/bid/auction/sweep flows connected to real contract hooks.
  */
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight, Gavel, RefreshCw, ShoppingCart, Tag, WalletCards, X,
 } from "lucide-react";
@@ -197,6 +198,8 @@ export interface SellDialogProps {
   className?: string;
   defaultPrice?: string;
   existingListingId?: string;
+  existingAuctionId?: string;
+  hasAuctionBids?: boolean;
 }
 
 export function SellDialog({
@@ -209,6 +212,8 @@ export function SellDialog({
   className,
   defaultPrice = "0.1",
   existingListingId,
+  existingAuctionId,
+  hasAuctionBids = false,
 }: SellDialogProps) {
   const [open, setOpen] = useState(false);
   const [priceText, setPriceText] = useState(defaultPrice);
@@ -233,6 +238,8 @@ export function SellDialog({
     listingHash,
     cancelListing,
   } = useListing();
+
+  const { cancelAuction } = useAuction();
 
   const priceWei = parseEthInput(priceText);
   // Show an inline error when user has typed something but it parses to zero
@@ -271,6 +278,13 @@ export function SellDialog({
         await cancelListing(BigInt(existingListingId));
       } catch (err) {
         console.warn("Cancelling active listing before updating price:", err);
+      }
+    }
+    if (existingAuctionId && !hasAuctionBids) {
+      try {
+        await cancelAuction(BigInt(existingAuctionId));
+      } catch (err) {
+        console.warn("Cancelling active auction before creating listing:", err);
       }
     }
     await createListing(
@@ -502,20 +516,36 @@ export function OfferDialog({
 }: OfferDialogProps) {
   const [open, setOpen] = useState(false);
   const [amountText, setAmountText] = useState("0.05");
+  const [quantityText, setQuantityText] = useState("1");
   const [duration, setDuration] = useState(604800);
   const { wallet } = useWallet();
   const addresses = useAddresses();
+  const queryClient = useQueryClient();
 
   const { createOffer, isPending, isConfirming, isSuccess } = useOffer();
 
-  const amountWei = parseEthInput(amountText);
+  const isErc1155 = tokenStandard === "ERC-1155";
+  const parsedQty = Math.max(1, parseInt(quantityText || "1", 10) || 1);
+  const quantity = isErc1155 ? BigInt(parsedQty) : 1n;
+
+  const unitAmountWei = parseEthInput(amountText);
+  const totalAmountWei = unitAmountWei * quantity;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + duration);
-  const quantity = tokenStandard === "ERC-1155" ? 1n : 1n;
+
   const { data: offerQuote } = useSaleQuote(
     nftContract,
     BigInt(tokenId),
-    amountWei > 0n ? amountWei : undefined,
+    totalAmountWei > 0n ? totalAmountWei : undefined,
   );
+
+  useEffect(() => {
+    if (isSuccess) {
+      queryClient.invalidateQueries({ queryKey: ["asset-offers"] });
+      queryClient.invalidateQueries({ queryKey: ["offers-by-collection"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-offers"] });
+      queryClient.invalidateQueries({ queryKey: ["token"] });
+    }
+  }, [isSuccess, queryClient]);
 
   async function handleOffer() {
     if (!wallet || !addresses) {
@@ -532,7 +562,7 @@ export function OfferDialog({
         nftContract,
         BigInt(tokenId),
         quantity,
-        amountWei,
+        totalAmountWei,
         deadline,
         buyerTotal,
       );
@@ -556,14 +586,16 @@ export function OfferDialog({
           <DialogDescription>
             {isSuccess
               ? "Your offer has been recorded on-chain. The owner will be notified."
-              : "Set the amount you're willing to pay. Funds will be held until the offer is accepted or expires."}
+              : "Set the amount you're willing to pay. Funds will be held safely in marketplace escrow until the offer is accepted or expires."}
           </DialogDescription>
         </DialogHeader>
 
         {!isSuccess && (
           <div className="space-y-4">
             <div>
-              <label className="field-label mt-0">Offer Amount</label>
+              <label className="field-label mt-0">
+                {isErc1155 ? "Offer Price per Item" : "Offer Amount"}
+              </label>
               <div className="flex">
                 <input
                   value={amountText}
@@ -575,6 +607,20 @@ export function OfferDialog({
                 <span className="flex items-center rounded-r-md border border-l-0 border-border px-3 text-sm">◆ ETH</span>
               </div>
             </div>
+
+            {isErc1155 && (
+              <div>
+                <label className="field-label mt-0">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantityText}
+                  onChange={(e) => setQuantityText(e.target.value)}
+                  className="control w-full"
+                  placeholder="1"
+                />
+              </div>
+            )}
 
             <div>
               <label className="field-label mt-0">Offer Expires In</label>
@@ -588,16 +634,35 @@ export function OfferDialog({
               </Select>
             </div>
 
-            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <FeeRow label="Offer Amount" value={formatEth(amountWei)} strong />
-              {(offerQuote as { buyerTotal: bigint } | undefined)?.buyerTotal != null && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-1.5">
+              <FeeRow
+                label={isErc1155 && quantity > 1n ? `Net Offer (${quantity} items)` : "Net Offer to Seller"}
+                value={formatEth(totalAmountWei)}
+                strong
+              />
+              {offerQuote?.royaltyAmount != null && offerQuote.royaltyAmount > 0n && (
                 <FeeRow
-                  label="You Pay (incl. fees)"
-                  value={formatEth((offerQuote as { buyerTotal: bigint }).buyerTotal)}
+                  label="Creator Royalty"
+                  value={formatEth(offerQuote.royaltyAmount)}
                 />
               )}
+              {offerQuote?.platformFee != null && offerQuote.platformFee > 0n && (
+                <FeeRow
+                  label="Platform Fee"
+                  value={formatEth(offerQuote.platformFee)}
+                />
+              )}
+              {(offerQuote as { buyerTotal: bigint } | undefined)?.buyerTotal != null && (
+                <div className="border-t border-border pt-1.5 mt-1.5">
+                  <FeeRow
+                    label="Total Escrow Required"
+                    value={formatEth((offerQuote as { buyerTotal: bigint }).buyerTotal)}
+                    strong
+                  />
+                </div>
+              )}
               <p className="mt-2 text-[11px] text-muted-foreground">
-                ⓘ ETH is escrowed in the marketplace until the owner accepts or the offer expires.
+                ⓘ Escrowed ETH remains yours and can be cancelled and refunded at any time before acceptance.
               </p>
             </div>
           </div>
@@ -611,7 +676,7 @@ export function OfferDialog({
           ) : (
             <Button
               onClick={handleOffer}
-              disabled={!wallet || amountWei <= 0n || isPending || isConfirming}
+              disabled={!wallet || totalAmountWei <= 0n || isPending || isConfirming}
             >
               {!wallet ? "Connect Wallet" :
                 isPending ? "Confirm in wallet…" :
@@ -780,6 +845,7 @@ export interface CreateAuctionDialogProps {
   tokenStandard: "ERC-721" | "ERC-1155";
   royaltyBps?: number;
   label?: string;
+  existingListingId?: string;
 }
 
 export function CreateAuctionDialog({
@@ -788,13 +854,14 @@ export function CreateAuctionDialog({
   tokenStandard,
   royaltyBps = 0,
   label = "Start Auction",
+  existingListingId,
 }: CreateAuctionDialogProps) {
   const [open, setOpen] = useState(false);
   const [startPriceText, setStartPriceText] = useState("0.01");
   const [duration, setDuration] = useState(86400); // 1 day default
   const { wallet } = useWallet();
   const { createAuction, isPending, isConfirming, isSuccess } = useAuction();
-  const { approveAll, approve721 } = useListing();
+  const { approveAll, approve721, cancelListing } = useListing();
   const addresses = useAddresses();
 
   const startPriceWei = parseEthInput(startPriceText);
@@ -805,6 +872,13 @@ export function CreateAuctionDialog({
     if (!wallet || !addresses) { toast.error("Connect your wallet first."); return; }
     if (startPriceWei <= 0n) { toast.error("Set a starting price."); return; }
     try {
+      if (existingListingId) {
+        try {
+          await cancelListing(BigInt(existingListingId));
+        } catch (err) {
+          console.warn("Cancelling active listing before starting auction:", err);
+        }
+      }
       if (isERC721) {
         await approve721(nftContract, BigInt(tokenId));
       } else {

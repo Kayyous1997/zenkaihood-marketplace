@@ -20,8 +20,9 @@ import {
   Check,
   XCircle,
   AlertCircle,
-  Clock,
   Flame,
+  Coins,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 import { useCollectionsMeta } from "@/hooks/useCollectionsMeta";
 import { useListing } from "@/hooks/useListing";
 import { useAuction } from "@/hooks/useAuction";
+import { useOffer } from "@/hooks/useOffer";
 import { parseContractError } from "@/lib/contract-errors";
 import { gqlClient } from "@/indexer/client";
 import {
@@ -48,6 +50,7 @@ import {
   GET_LISTINGS_BY_SELLER,
   GET_AUCTIONS_BY_SELLER,
   GET_BIDS_BY_BIDDER,
+  GET_OFFERS_BY_USER,
   GET_USER_ACTIVITY,
   GET_COLLECTIONS,
   type TokensByOwnerResult,
@@ -55,6 +58,7 @@ import {
   type ListingsBySellerResult,
   type AuctionsBySellerResult,
   type BidsByBidderResult,
+  type OffersByUserResult,
   type UserActivityResult,
   type CollectionsResult,
 } from "@/indexer/queries";
@@ -77,7 +81,7 @@ export const Route = createFileRoute("/profile")({
   component: ProfilePage,
 });
 
-const PROFILE_TABS = [["Collected"], ["Created"], ["Listed"], ["Auctions & Bids"], ["Activity"]] as const;
+const PROFILE_TABS = [["Collected"], ["Created"], ["Listed"], ["Auctions & Bids"], ["Offers"], ["Activity"]] as const;
 
 function formatTimeLeft(endTime: string): string {
   const diff = Number(endTime) * 1000 - Date.now();
@@ -100,6 +104,7 @@ function ProfilePage() {
   const admin = useAdmin();
   const { cancelListing, listingPending } = useListing();
   const { cancelAuction, settleAuction, isPending: auctionActionPending } = useAuction();
+  const { cancelOffer, refundExpiredOffer, isPending: offerActionPending } = useOffer();
   const { data: fallbackData, isLoading: fallbackLoading } = useOwnedTokenFallback(address as `0x${string}` | undefined);
 
   const addrShort = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "Not connected";
@@ -184,6 +189,18 @@ function ProfilePage() {
     refetchInterval: SLOW_REFETCH_MS,
   });
 
+  // Query 7: Offers made by user
+  const { data: offersData, isLoading: offersLoading, refetch: refetchOffers } = useQuery({
+    queryKey: ["profile-offers", address],
+    queryFn: () => gqlClient.request<OffersByUserResult>(GET_OFFERS_BY_USER, {
+      offerer: address as `0x${string}`,
+      first: 50,
+      skip: 0,
+    }),
+    enabled: !!address,
+    refetchInterval: DEFAULT_REFETCH_MS,
+  });
+
   const allCollections = collectionsData?.collections ?? [];
 
   // Filter collections created or registered by this wallet address
@@ -235,6 +252,7 @@ function ProfilePage() {
   const listings = listingsData?.listings ?? [];
   const myAuctions = auctionsData?.auctions ?? [];
   const myBids = bidsData?.bids ?? [];
+  const myOffers = offersData?.offers ?? [];
   const now = Math.floor(Date.now() / 1000);
   const activeListings = listings.filter((l) => l.active && !l.cancelled && Number(l.endTime) > now);
   const activeAuctions = myAuctions.filter((a) => a.active);
@@ -244,7 +262,8 @@ function ProfilePage() {
     tab === "Collected" ? ownedLoading || erc1155Loading || fallbackLoading :
     tab === "Created" ? collectionsLoading :
     tab === "Listed" ? listingsLoading :
-    tab === "Auctions & Bids" ? auctionsLoading || bidsLoading : activityLoading;
+    tab === "Auctions & Bids" ? auctionsLoading || bidsLoading :
+    tab === "Offers" ? offersLoading : activityLoading;
 
   function handleCopyAddress() {
     if (!wallet) return;
@@ -292,6 +311,26 @@ function ProfilePage() {
     }
   }
 
+  async function handleCancelOffer(offerId: string) {
+    try {
+      await cancelOffer(BigInt(offerId));
+      toast.success("Offer cancelled and escrowed funds refunded!", { id: "cancel-offer" });
+      void refetchOffers();
+    } catch (err) {
+      toast.error(parseContractError(err), { id: "cancel-offer" });
+    }
+  }
+
+  async function handleRefundExpiredOffer(offerId: string) {
+    try {
+      await refundExpiredOffer(BigInt(offerId));
+      toast.success("Expired offer refunded to wallet!", { id: "refund-offer" });
+      void refetchOffers();
+    } catch (err) {
+      toast.error(parseContractError(err), { id: "refund-offer" });
+    }
+  }
+
   // Filtered lists based on search bar
   const filteredOwned = ownedTokens.filter(
     (t) => !searchQuery || t.tokenId?.includes(searchQuery) || t.collection?.id?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -311,6 +350,10 @@ function ProfilePage() {
 
   const filteredBids = myBids.filter(
     (b) => !searchQuery || b.auction?.tokenId?.includes(searchQuery) || b.auction?.collection?.id?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredOffers = myOffers.filter(
+    (o) => !searchQuery || o.tokenId?.includes(searchQuery) || o.collection?.id?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -387,7 +430,7 @@ function ProfilePage() {
             </div>
 
             {/* OpenSea Stats Bar */}
-            <div className="py-4 grid grid-cols-2 sm:grid-cols-5 gap-4 border-b border-border text-center sm:text-left">
+            <div className="py-4 grid grid-cols-2 sm:grid-cols-6 gap-4 border-b border-border text-center sm:text-left">
               <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Collected</span>
                 <p className="font-display text-xl sm:text-2xl font-bold">{ownedTokens.length}</p>
@@ -403,6 +446,10 @@ function ProfilePage() {
               <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Auctions & Bids</span>
                 <p className="font-display text-xl sm:text-2xl font-bold">{myAuctions.length + myBids.length}</p>
+              </div>
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Offers Made</span>
+                <p className="font-display text-xl sm:text-2xl font-bold">{myOffers.length}</p>
               </div>
               <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Activity Events</span>
@@ -639,6 +686,37 @@ function ProfilePage() {
                   </div>
                 )}
               </div>
+            ) : tab === "Offers" ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-sm font-semibold flex items-center gap-2">
+                    <Tag className="size-4 text-primary" /> Active Offers Placed by You ({filteredOffers.length})
+                  </h3>
+                </div>
+
+                {filteredOffers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 rounded-2xl border border-dashed border-border bg-card/30 p-6 text-center">
+                    <Tag className="size-8 text-muted-foreground/60 mb-2" />
+                    <p className="text-xs text-muted-foreground mb-3">You haven't placed any offers yet.</p>
+                    <Button asChild size="sm" variant="outline" className="gap-2 text-xs">
+                      <Link to="/explore">Explore Collections</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                    {filteredOffers.map((offer, i) => (
+                      <ProfileOfferCard
+                        key={offer.id}
+                        offer={offer}
+                        onCancel={handleCancelOffer}
+                        onRefund={handleRefundExpiredOffer}
+                        actionPending={offerActionPending}
+                        index={i}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : activity.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
                 No activity history found.
@@ -791,8 +869,17 @@ function ProfileAuctionCard({
               onClick={() => onSettle(auction.id)}
               className="w-full text-[10px] h-7 bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Gavel className="size-3 mr-1" />
-              Settle Auction
+              {hasBids ? (
+                <>
+                  <Coins className="size-3 mr-1" />
+                  Settle & Receive Payout
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="size-3 mr-1" />
+                  Settle & Close
+                </>
+              )}
             </Button>
           ) : (
             <Button asChild variant="outline" size="sm" className="w-full text-[10px] h-7">
@@ -936,6 +1023,123 @@ function ProfileBidCard({
               <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }}>
                 View Auction
               </Link>
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Profile Offer Card Component ──────────────────────────────────────────────
+
+function ProfileOfferCard({
+  offer,
+  onCancel,
+  onRefund,
+  actionPending = false,
+  index,
+}: {
+  offer: any;
+  onCancel: (offerId: string) => void;
+  onRefund: (offerId: string) => void;
+  actionPending?: boolean;
+  index: number;
+}) {
+  const collectionAddress = (offer.collection?.id || "") as `0x${string}`;
+  const tokenId = offer.tokenId || "";
+  const { imageUri, name } = useTokenMetadata(
+    collectionAddress,
+    tokenId,
+  );
+  const now = Math.floor(Date.now() / 1000);
+  const expStr = offer.expiration || "0";
+  const isExpired = Number(expStr) <= now;
+  const amountVal = BigInt(offer.amount || "0");
+  const fundedVal = BigInt(offer.fundedAmount || "0");
+
+  return (
+    <div
+      className="card-hover group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-300 flex flex-col justify-between"
+      style={{ animationDelay: `${index * 0.04}s` }}
+    >
+      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }} className="block">
+        <div className="relative aspect-square overflow-hidden bg-muted">
+          {imageUri ? (
+            <IpfsImg
+              uri={imageUri}
+              alt={name || `Token #${tokenId}`}
+              className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="size-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-mono">
+              #{tokenId}
+            </div>
+          )}
+
+          {/* Status Badge */}
+          <span className={cn(
+            "absolute top-2 left-2 rounded-full backdrop-blur px-2.5 py-0.5 text-[10px] font-semibold shadow-sm border",
+            !offer.active
+              ? "bg-background/90 text-muted-foreground border-border"
+              : isExpired
+                ? "bg-destructive/20 text-destructive border-destructive/30"
+                : "bg-primary/20 text-primary border-primary/30"
+          )}>
+            {!offer.active ? "Closed" : isExpired ? "Expired" : "Active Offer"}
+          </span>
+
+          <span className="absolute bottom-2 left-2 rounded-full bg-background/80 backdrop-blur px-2 py-0.5 text-[9px] font-medium text-muted-foreground">
+            {offer.active ? formatTimeLeft(expStr) : "Closed"}
+          </span>
+        </div>
+
+        <div className="p-3">
+          <p className="truncate font-display text-xs font-semibold group-hover:text-primary transition-colors">
+            {name || `Token #${tokenId}`}
+          </p>
+          <div className="mt-1 flex items-center justify-between text-xs">
+            <span className="text-[10px] text-muted-foreground">Offer Amount</span>
+            <span className="font-semibold text-primary">
+              {formatEthCompact(amountVal)}
+            </span>
+          </div>
+          {fundedVal > amountVal && (
+            <div className="mt-0.5 flex items-center justify-between text-xs">
+              <span className="text-[10px] text-muted-foreground">Escrowed (incl. fees)</span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {formatEthCompact(fundedVal)}
+              </span>
+            </div>
+          )}
+        </div>
+      </Link>
+
+      {/* Action Footer */}
+      {offer.active && (
+        <div className="p-2 border-t border-border bg-card/60 flex gap-2">
+          {!isExpired ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={actionPending}
+              onClick={() => onCancel(offer.id)}
+              className="w-full text-[10px] h-7 text-destructive hover:bg-destructive/10"
+            >
+              <XCircle className="size-3 mr-1" />
+              Cancel & Refund ETH
+            </Button>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              disabled={actionPending}
+              onClick={() => onRefund(offer.id)}
+              className="w-full text-[10px] h-7 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+            >
+              <RefreshCw className="size-3 mr-1" />
+              Claim Refund
             </Button>
           )}
         </div>

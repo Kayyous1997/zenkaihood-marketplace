@@ -677,6 +677,10 @@ export const GET_AUCTIONS_FOR_ASSET = `
   }
 `;
 
+export interface AuctionsForAssetResult {
+  auctions: AuctionFragment[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Bids
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1075,6 +1079,39 @@ export const GET_TOKENS_BY_OWNER = `
 `;
 
 export interface TokensByOwnerResult {
+  tokens: TokenFragment[];
+}
+
+/**
+ * All tokens in a collection, ordered by tokenId.
+ * Used on: /collections/$slug detail page to display both listed and unlisted items.
+ */
+export const GET_TOKENS_BY_COLLECTION = `
+  query GetTokensByCollection($collection: String!, $first: Int!, $skip: Int!) {
+    tokens(
+      first: $first
+      skip: $skip
+      orderBy: tokenId
+      orderDirection: asc
+      where: { collection: $collection }
+    ) {
+      id
+      collection {
+        id
+        metadataURI
+        tokenStandard
+        royaltyBps
+        verified
+      }
+      tokenId
+      owner
+      mintedAtBlock
+      lastTransferBlock
+    }
+  }
+`;
+
+export interface TokensByCollectionResult {
   tokens: TokenFragment[];
 }
 
