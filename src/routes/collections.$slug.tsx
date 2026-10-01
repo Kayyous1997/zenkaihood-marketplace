@@ -92,9 +92,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/collections/$slug")({
   head: ({ params }) => ({
     meta: [
-      { title: `Collection ${params.slug.slice(0, 8)}… — Zenkaihood` },
-      { name: "description", content: `Browse, trade, and analyze NFTs in collection ${params.slug} on Zenkaihood.` },
-      { property: "og:title", content: `Collection — Zenkaihood` },
+      { title: `Collection ${params.slug.slice(0, 8)}… — NexDrop` },
+      { name: "description", content: `Browse, trade, and analyze NFTs in collection ${params.slug} on NexDrop.` },
+      { property: "og:title", content: `Collection — NexDrop` },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -133,6 +133,17 @@ function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+function safeBigInt(val: string | number | undefined | null, fallback = 0n): bigint {
+  if (val === undefined || val === null || val === "") return fallback;
+  try {
+    const s = String(val).trim();
+    if (/^-?\d+$/.test(s)) return BigInt(s);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function formatCreated(unix: string) {
   const date = new Date(Number(unix) * 1000);
   if (Number.isNaN(date.getTime())) return "—";
@@ -141,8 +152,9 @@ function formatCreated(unix: string) {
 
 function CollectionPage() {
   const { slug } = Route.useParams();
-  const collectionAddress = slug.toLowerCase() as `0x${string}`;
+  const collectionAddress = (slug ? slug.toLowerCase() : "") as `0x${string}`;
 
+  const { address } = useWallet();
   const [tab, setTab] = useState<Tab>("Items");
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [status, setStatus] = useState<StatusFilter>("All");
@@ -729,12 +741,11 @@ function CollectionPage() {
     .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
     .map((s) => ({
       date: new Date(Number(s.timestamp) * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      price: Number(formatEth(BigInt(s.price))),
+      price: Number(formatEth(safeBigInt(s.price))),
       tokenId: s.tokenId ? `#${s.tokenId}` : "Item",
     }));
 
   const floorItem = ethListings[0];
-  const { address } = useWallet();
   const isFloorItemOwner = Boolean(
     address && floorItem && floorItem.seller.toLowerCase() === address.toLowerCase()
   );
@@ -1927,9 +1938,10 @@ function ListingCard({
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId);
   const { address } = useWallet();
   const isEth = listing.paymentToken === ETH_ADDRESS;
-  const price = isEth ? formatEthCompact(BigInt(listing.pricePerItem)) : listing.pricePerItem;
+  const listingPriceWei = safeBigInt(listing.pricePerItem);
+  const price = isEth ? formatEthCompact(listingPriceWei) : listing.pricePerItem;
 
-  const isFloor = floorWei && isEth && BigInt(listing.pricePerItem) === floorWei;
+  const isFloor = floorWei && isEth && listingPriceWei === floorWei;
   const isSeller = Boolean(
     address && listing.seller && listing.seller.toLowerCase() === address.toLowerCase()
   );
@@ -2029,10 +2041,10 @@ function AuctionCard({
 }) {
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId);
   const { address } = useWallet();
-  const endsAt = BigInt(auction.endTime);
+  const endsAt = safeBigInt(auction.endTime);
   const endsInMin = Math.max(0, Math.floor((Number(endsAt) * 1000 - Date.now()) / 60000));
-  const reserve = BigInt(auction.reservePrice || "0");
-  const bid = BigInt(auction.highestBid || "0");
+  const reserve = safeBigInt(auction.reservePrice);
+  const bid = safeBigInt(auction.highestBid);
   const highBid = bid > 0n ? bid : reserve;
   const minBid = ((highBid > 0n ? highBid : 10n ** 15n) * 105n) / 100n;
   const isSeller = Boolean(
@@ -2078,7 +2090,7 @@ function AuctionCard({
           </Button>
         ) : (
           <BidDialog
-            auctionId={BigInt(auction.id)}
+            auctionId={safeBigInt(auction.id)}
             nftContract={collectionAddress as `0x${string}`}
             minBid={minBid}
             paymentToken={auction.paymentToken}
@@ -2114,12 +2126,13 @@ function UnlistedCard({
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId);
   const { address } = useWallet();
   const isErc1155 = tokenStandard === "ERC-1155";
+  const parsedTokenId = safeBigInt(tokenId);
 
   const { data: onchainOwner } = useReadContract({
     address: !isErc1155 && isAddress(collectionAddress) ? (collectionAddress as `0x${string}`) : undefined,
     abi: erc721Abi,
     functionName: "ownerOf",
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: parsedTokenId !== undefined ? [parsedTokenId] : undefined,
     query: { enabled: typeof window !== "undefined" && !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
   });
 
@@ -2127,7 +2140,7 @@ function UnlistedCard({
     address: isErc1155 && isAddress(collectionAddress) ? (collectionAddress as `0x${string}`) : undefined,
     abi: erc1155Abi,
     functionName: "balanceOf",
-    args: address && tokenId ? [address as `0x${string}`, BigInt(tokenId)] : undefined,
+    args: address && parsedTokenId !== undefined ? [address as `0x${string}`, parsedTokenId] : undefined,
     query: { enabled: typeof window !== "undefined" && isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
   });
 
@@ -2233,7 +2246,7 @@ function ListingTableRow({
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId);
   const { address } = useWallet();
   const isEth = listing.paymentToken === ETH_ADDRESS;
-  const price = isEth ? formatEthCompact(BigInt(listing.pricePerItem)) : listing.pricePerItem;
+  const price = isEth ? formatEthCompact(safeBigInt(listing.pricePerItem)) : listing.pricePerItem;
   const isSeller = Boolean(
     address && listing.seller && listing.seller.toLowerCase() === address.toLowerCase()
   );
@@ -2295,8 +2308,8 @@ function AuctionTableRow({
 }) {
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId);
   const { address } = useWallet();
-  const reserve = BigInt(auction.reservePrice || "0");
-  const bid = BigInt(auction.highestBid || "0");
+  const reserve = safeBigInt(auction.reservePrice);
+  const bid = safeBigInt(auction.highestBid);
   const highBid = bid > 0n ? bid : reserve;
   const isSeller = Boolean(
     address && auction.seller && auction.seller.toLowerCase() === address.toLowerCase()
@@ -2358,12 +2371,13 @@ function UnlistedTableRow({
   const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId);
   const { address } = useWallet();
   const isErc1155 = tokenStandard === "ERC-1155";
+  const parsedTokenId = safeBigInt(tokenId);
 
   const { data: onchainOwner } = useReadContract({
     address: !isErc1155 && isAddress(collectionAddress) ? (collectionAddress as `0x${string}`) : undefined,
     abi: erc721Abi,
     functionName: "ownerOf",
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: parsedTokenId !== undefined ? [parsedTokenId] : undefined,
     query: { enabled: typeof window !== "undefined" && !isErc1155 && isAddress(collectionAddress) && !!tokenId && !owner },
   });
 
@@ -2371,7 +2385,7 @@ function UnlistedTableRow({
     address: isErc1155 && isAddress(collectionAddress) ? (collectionAddress as `0x${string}`) : undefined,
     abi: erc1155Abi,
     functionName: "balanceOf",
-    args: address && tokenId ? [address as `0x${string}`, BigInt(tokenId)] : undefined,
+    args: address && parsedTokenId !== undefined ? [address as `0x${string}`, parsedTokenId] : undefined,
     query: { enabled: typeof window !== "undefined" && isErc1155 && isAddress(collectionAddress) && !!address && !!tokenId },
   });
 
@@ -2404,7 +2418,7 @@ function UnlistedTableRow({
       <td className="p-3 text-muted-foreground">
         {topOffer ? (
           <span className="font-semibold text-foreground">
-            Top Offer: {formatEthCompact(BigInt(topOffer.amount))}
+            Top Offer: {formatEthCompact(safeBigInt(topOffer.amount))}
           </span>
         ) : (
           "—"

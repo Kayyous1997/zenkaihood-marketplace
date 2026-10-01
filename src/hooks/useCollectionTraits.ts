@@ -160,8 +160,12 @@ export function useCollectionTraits(
           if (itemPriceStr) {
             const key = `${type}:::${val}`;
             const curMin = traitFloorMap[key];
-            if (!curMin || BigInt(itemPriceStr) < BigInt(curMin)) {
-              traitFloorMap[key] = itemPriceStr;
+            try {
+              if (!curMin || BigInt(itemPriceStr) < BigInt(curMin)) {
+                traitFloorMap[key] = itemPriceStr;
+              }
+            } catch {
+              // ignore invalid price string
             }
           }
         }

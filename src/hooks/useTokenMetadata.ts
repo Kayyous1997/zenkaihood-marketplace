@@ -14,6 +14,17 @@ const erc721WithTokenUri = [
   },
 ] as const;
 
+function safeParseBigInt(val: string | number | undefined): bigint | undefined {
+  if (val === undefined || val === null || val === "") return undefined;
+  try {
+    const s = String(val).trim();
+    if (!/^\d+$/.test(s)) return undefined;
+    return BigInt(s);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Reads `tokenURI(tokenId)` from an ERC-721 contract on-chain,
  * then fetches and returns the IPFS/HTTP metadata JSON.
@@ -26,15 +37,16 @@ export function useTokenMetadata(
   tokenId: string | number | undefined,
   tokenStandard: "ERC-721" | "ERC-1155" = "ERC-721",
 ) {
-  const tokenIdBig = tokenId !== undefined ? BigInt(String(tokenId)) : undefined;
+  const isClient = typeof window !== "undefined";
+  const tokenIdBig = safeParseBigInt(tokenId);
 
-  // Step 1: read tokenURI from chain
+  // Step 1: read tokenURI from chain (client-only to prevent SSR RPC flooding / hydration mismatches)
   const { data: tokenUri } = useReadContract({
     address: contractAddress,
     abi: erc721WithTokenUri,
     functionName: "tokenURI",
     args: tokenIdBig !== undefined ? [tokenIdBig] : undefined,
-    query: { enabled: !!contractAddress && tokenIdBig !== undefined },
+    query: { enabled: isClient && !!contractAddress && tokenIdBig !== undefined },
   });
 
   const { data: erc1155Uri } = useReadContract({
@@ -42,7 +54,7 @@ export function useTokenMetadata(
     abi: [{ type: "function", name: "uri", inputs: [{ name: "id", type: "uint256" }], outputs: [{ name: "", type: "string" }], stateMutability: "view" }] as const,
     functionName: "uri",
     args: tokenIdBig !== undefined ? [tokenIdBig] : undefined,
-    query: { enabled: tokenStandard === "ERC-1155" && !!contractAddress && tokenIdBig !== undefined },
+    query: { enabled: isClient && tokenStandard === "ERC-1155" && !!contractAddress && tokenIdBig !== undefined },
   });
   const resolvedTokenUri = tokenStandard === "ERC-1155" ? erc1155Uri : tokenUri;
 
