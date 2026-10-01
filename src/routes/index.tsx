@@ -82,9 +82,9 @@ function formatRelativeTime(timestampSec: number): string {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Zenkaihood — NFT Marketplace on Base Sepolia" },
-      { name: "description", content: "Discover, collect, and trade remarkable digital art and NFTs on Base Sepolia with Zenkaihood." },
-      { property: "og:title", content: "Zenkaihood NFT Marketplace" },
+      { title: "NexDrop — NFT Marketplace on Base Sepolia" },
+      { name: "description", content: "Discover, collect, and trade remarkable digital art and NFTs on Base Sepolia with NexDrop." },
+      { property: "og:title", content: "NexDrop NFT Marketplace" },
       { property: "og:description", content: "Explore trending collections, live auctions, and top digital art." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -1060,7 +1060,7 @@ function HomePage() {
                   No Categorized Collections Registered Yet
                 </h3>
                 <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                  Be the first creator to deploy and register a collection with custom categories on Zenkaihood.
+                  Be the first creator to deploy and register a collection with custom categories on NexDrop.
                 </p>
                 <div className="mt-5 flex items-center gap-3">
                   <Button asChild size="sm" className="gap-1.5">
@@ -1077,7 +1077,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── 8. WHY ZENKAIHOOD: TRUST & ECOSYSTEM ADVANTAGES ──────────────── */}
+        {/* ─── 8. WHY NEXDROP: TRUST & ECOSYSTEM ADVANTAGES ──────────────── */}
         <section className="border-t border-border bg-card/30 py-16 sm:py-20">
           <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
             <div className="mx-auto max-w-3xl text-center">
@@ -1088,7 +1088,7 @@ function HomePage() {
                 Engineered for Fair, Safe &amp; Low-Cost Trading
               </h2>
               <p className="mt-3 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                Zenkaihood combines battle-tested smart contract infrastructure with modern Layer-2 scalability on Base Sepolia.
+                NexDrop combines battle-tested smart contract infrastructure with modern Layer-2 scalability on Base Sepolia.
               </p>
             </div>
 
@@ -1189,7 +1189,7 @@ function HomePage() {
             <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-8 sm:p-12 shadow-xl">
               <div className="relative z-10 max-w-2xl">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/20 px-3 py-0.5 text-xs font-semibold text-primary">
-                  <ShieldCheck className="size-3.5" /> Zenkaihood Creator Studio
+                  <ShieldCheck className="size-3.5" /> NexDrop Creator Studio
                 </span>
                 <h3 className="mt-4 font-display text-2xl sm:text-4xl font-extrabold tracking-tight">
                   Launch Your Collection on Base Sepolia

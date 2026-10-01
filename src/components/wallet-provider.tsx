@@ -10,7 +10,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <RainbowKitProvider
-        appInfo={{ appName: "Zenkaihood" }}
+        appInfo={{ appName: "NexDrop" }}
         theme={darkTheme({
           accentColor: "var(--primary)",
           accentColorForeground: "var(--primary-foreground)",

@@ -16,9 +16,9 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/listings")({
   head: () => ({ meta: [
-    { title: "Your Active Listings — Zenkaihood" },
-    { name: "description", content: "Manage your Zenkaihood listings, update prices, or cancel them at any time." },
-    { property: "og:title", content: "Your Active Listings — Zenkaihood" },
+    { title: "Your Active Listings — NexDrop" },
+    { name: "description", content: "Manage your NexDrop listings, update prices, or cancel them at any time." },
+    { property: "og:title", content: "Your Active Listings — NexDrop" },
     { property: "og:description", content: "Manage the collectibles you have listed for sale." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}),

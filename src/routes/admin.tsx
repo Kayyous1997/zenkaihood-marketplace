@@ -71,8 +71,8 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin Portal & Governance — Zenkaihood" },
-      { name: "description", content: "Protocol governance, verification, and marketplace administration for Zenkaihood." },
+      { title: "Admin Portal & Governance — NexDrop" },
+      { name: "description", content: "Protocol governance, verification, and marketplace administration for NexDrop." },
     ],
   }),
   component: AdminPage,
@@ -267,7 +267,7 @@ function AdminPage() {
           </div>
           <h1 className="font-display text-3xl font-extrabold tracking-tight">Admin Portal</h1>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-            Please connect your administrator wallet to manage Zenkaihood smart contracts, collection verification, platform fees, and circuit breakers.
+            Please connect your administrator wallet to manage NexDrop smart contracts, collection verification, platform fees, and circuit breakers.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <ConnectButton />
@@ -422,7 +422,7 @@ function AdminPage() {
                 Admin Panel &amp; Governance
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Zenkaihood Protocol Control Suite — Manage marketplace fees, emergency circuit breakers, collection verifications, and smart contract ownership.
+                NexDrop Protocol Control Suite — Manage marketplace fees, emergency circuit breakers, collection verifications, and smart contract ownership.
               </p>
             </div>
 
@@ -519,7 +519,7 @@ function AdminPage() {
               <div>
                 <p className="text-sm font-semibold text-amber-500">Ownership Transfer Pending</p>
                 <p className="text-xs text-muted-foreground">
-                  You have been nominated as the new owner of the Zenkaihood Marketplace contract.
+                  You have been nominated as the new owner of the NexDrop Marketplace contract.
                 </p>
               </div>
             </div>
@@ -1218,7 +1218,7 @@ function AdminPage() {
                 <h3 className="font-display text-base font-bold">Marketplace Contract Ownership</h3>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Zenkaihood Marketplace uses a 2-step Ownable2Step transfer process. The nominated address must execute `acceptOwnership()` to finalize.
+                NexDrop Marketplace uses a 2-step Ownable2Step transfer process. The nominated address must execute `acceptOwnership()` to finalize.
               </p>
 
               <div className="space-y-3 pt-2 text-xs">

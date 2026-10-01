@@ -212,7 +212,7 @@ function EditCollectionPage() {
 
       toast.success("Collection details & branding updated successfully! 🎉", {
         id: "save-details",
-        description: "Your new logo, banner, and collection details are now live on Zenkaihood.",
+        description: "Your new logo, banner, and collection details are now live on NexDrop.",
         duration: 4500,
       });
 
@@ -597,7 +597,7 @@ function EditCollectionPage() {
                 <div>
                   <h3 className="font-display text-base font-semibold">Creator Earnings & Royalties</h3>
                   <p className="text-xs text-muted-foreground">
-                    Set the on-chain percentage fee you receive on all secondary sales across the Zenkaihood Marketplace (max 10%).
+                    Set the on-chain percentage fee you receive on all secondary sales across the NexDrop Marketplace (max 10%).
                   </p>
                 </div>
 

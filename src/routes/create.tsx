@@ -30,10 +30,10 @@ function normalizeCollectionMetadataUri(value: string) {
 
 export const Route = createFileRoute("/create")({
   head: () => ({ meta: [
-    { title: "Register a Collection — Zenkaihood" },
-    { name: "description", content: "Register your NFT collection on Zenkaihood to enable secondary sales, set royalties and payout details." },
-    { property: "og:title", content: "Register a Collection — Zenkaihood" },
-    { property: "og:description", content: "Set up your collection for secondary trading on Zenkaihood." },
+    { title: "Register a Collection — NexDrop" },
+    { name: "description", content: "Register your NFT collection on NexDrop to enable secondary sales, set royalties and payout details." },
+    { property: "og:title", content: "Register a Collection — NexDrop" },
+    { property: "og:description", content: "Set up your collection for secondary trading on NexDrop." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}), component: RegisterCollectionPage,
 });
@@ -261,7 +261,7 @@ function RegisterCollectionPage() {
             <p className="eyebrow">Creator Studio<span /></p>
             <h1 className="mt-2 font-display text-5xl font-semibold">Register Your Collection</h1>
             <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-              Zenkaihood is a secondary marketplace. Register your deployed contract so holders can trade your collection here — and so every resale pays you a royalty.
+              NexDrop is a secondary marketplace. Register your deployed contract so holders can trade your collection here — and so every resale pays you a royalty.
             </p>
           </div>
         </InkHero>
@@ -390,7 +390,7 @@ function RegisterCollectionPage() {
             </Step>
 
             {/* Step 4 — Royalties */}
-            <Step number="4." title="Royalties & Payouts" subtitle="Earn a percentage of every secondary sale on Zenkaihood.">
+            <Step number="4." title="Royalties & Payouts" subtitle="Earn a percentage of every secondary sale on NexDrop.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="field-label mt-0" htmlFor="col-royalty">Creator Royalty</label>

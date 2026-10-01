@@ -19,7 +19,7 @@ export const walletConnectProjectId =
  * Multi-RPC fallback ensures resilience against individual RPC node downtime or DNS issues.
  */
 export const wagmiConfig = getDefaultConfig({
-  appName: "Zenkaihood",
+  appName: "NexDrop",
   appDescription: "A premium digital art marketplace.",
   projectId: walletConnectProjectId || "00000000000000000000000000000000",
   chains: [baseSepolia, robinhoodTestnet],

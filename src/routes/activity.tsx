@@ -26,9 +26,9 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/activity")({
   head: () => ({ meta: [
-    { title: "Marketplace Activity — Zenkaihood" },
-    { name: "description", content: "Track all Zenkaihood marketplace activity — sales, listings, offers, bids and transfers." },
-    { property: "og:title", content: "Marketplace Activity — Zenkaihood" },
+    { title: "Marketplace Activity — NexDrop" },
+    { name: "description", content: "Track all NexDrop marketplace activity — sales, listings, offers, bids and transfers." },
+    { property: "og:title", content: "Marketplace Activity — NexDrop" },
     { property: "og:description", content: "Global marketplace event feed." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}),

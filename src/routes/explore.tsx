@@ -24,9 +24,9 @@ export const Route = createFileRoute("/explore")({
     category: typeof search["category"] === "string" ? search["category"] : undefined,
   }),
   head: () => ({ meta: [
-    { title: "Explore Collections — Zenkaihood" },
-    { name: "description", content: "Browse every collection and digital work listed on the Zenkaihood marketplace." },
-    { property: "og:title", content: "Explore Collections — Zenkaihood" },
+    { title: "Explore Collections — NexDrop" },
+    { name: "description", content: "Browse every collection and digital work listed on the NexDrop marketplace." },
+    { property: "og:title", content: "Explore Collections — NexDrop" },
     { property: "og:description", content: "Discover collections and digital works from across the marketplace." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}),
@@ -96,7 +96,7 @@ function ExploreBrowsePage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Explore</p>
           <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">Collections</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Discover collections on Zenkaihood — search, filter, and open any contract to buy, bid, or make an offer.
+            Discover collections on NexDrop — search, filter, and open any contract to buy, bid, or make an offer.
           </p>
         </div>
       </section>

@@ -18,7 +18,7 @@ export const isSupabaseConfigured = !!supabase;
  * Sign-In with Ethereum using a SIWE-derived password.
  *
  * Flow:
- *  1. User signs `"Sign in to Zenkaihood: {address}"` with their wallet.
+ *  1. User signs `"Sign in to NexDrop: {address}"` with their wallet.
  *  2. We use the first 32 bytes of the signature hex as a deterministic password.
  *  3. We call signInWithPassword (or signUp on first use).
  *
@@ -33,7 +33,7 @@ export async function signInWithWallet(
 
   const addr = address.toLowerCase();
   const email = `${addr}@wallet.zenkaihood`;
-  const siweMessage = `Sign in to Zenkaihood: ${addr}`;
+  const siweMessage = `Sign in to NexDrop: ${addr}`;
 
   const sig = await signMessage({ message: siweMessage });
   // Deterministic password: first 32 bytes of signature (64 hex chars after 0x prefix)
