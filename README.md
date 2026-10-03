@@ -245,8 +245,8 @@ VITE_WALLETCONNECT_PROJECT_ID=your-project-id
 
 ```sh
 # Clone the repository
-git clone https://github.com/Kayyous1997/remix-of-remix-of-zenkaihood.git
-cd remix-of-remix-of-zenkaihood
+git clone https://github.com/Kayyous1997/zenkaihood-marketplace.git
+cd zenkaihood-marketplace
 
 # Install dependencies
 npm install
@@ -280,7 +280,7 @@ The app will be available at `http://localhost:3000`.
 1. Fork the repository and create a feature branch from `main`
 2. Make your changes and run `npm run build` to verify nothing is broken
 3. Open a pull request — the `main` branch is connected to Vercel and deploys automatically
-4. **Do not force-push, rebase, squash, or amend commits already pushed to `main`** — this project is connected to [Lovable](https://lovable.dev) and rewriting history breaks the Lovable editor sync
+4. **Do not force-push, rebase, squash, or amend commits already pushed to `main`** 
 
 ---
 
