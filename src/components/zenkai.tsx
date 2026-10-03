@@ -23,6 +23,7 @@ import {
   Tag,
 
   PlusSquare,
+  Rocket,
   TriangleAlert,
   UserRound,
   Users,
@@ -157,6 +158,17 @@ export function Header() {
               <Link key={to} to={to as any} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
             );
           })}
+          <a
+            href="https://launchpad.zenkaihood.xyz/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-link inline-flex items-center gap-1.5 font-medium transition-colors hover:text-primary"
+            aria-label="Launchpad (opens in new tab)"
+          >
+            <Rocket className="size-3.5 text-primary" />
+            <span>Launchpad</span>
+            <ExternalLink className="size-3 opacity-60" />
+          </a>
         </nav>
         <div className="ml-auto hidden items-center gap-3 lg:flex">
           <div className="flex h-9 w-[310px] items-center gap-2 rounded-md border border-border bg-surface px-3 text-muted-foreground">
@@ -178,6 +190,19 @@ export function Header() {
             <Link key={to} to={to as any} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
           );
         })}
+        <a
+          href="https://launchpad.zenkaihood.xyz/"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center justify-between border-b border-border/60 py-3 text-sm font-medium text-foreground transition-colors hover:text-primary"
+        >
+          <span className="flex items-center gap-2">
+            <Rocket className="size-4 text-primary" />
+            <span>Launchpad</span>
+          </span>
+          <ExternalLink className="size-3.5 text-muted-foreground" />
+        </a>
         <AccountNav className="mt-3" onNavigate={() => setMobileOpen(false)} />
       </nav>
     </header>
