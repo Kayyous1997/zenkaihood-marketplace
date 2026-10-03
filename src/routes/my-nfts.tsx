@@ -21,9 +21,9 @@ import { useOwnedTokenFallback, type FallbackToken } from "@/hooks/useOwnedToken
 
 export const Route = createFileRoute("/my-nfts")({
   head: () => ({ meta: [
-    { title: "My NFTs — NexDrop" },
-    { name: "description", content: "View, manage, and list the digital collectibles you own on the NexDrop marketplace." },
-    { property: "og:title", content: "My NFTs — NexDrop" },
+    { title: "My NFTs" },
+    { name: "description", content: "View, manage, and list the digital collectibles you own on the Zenkaihood marketplace." },
+    { property: "og:title", content: "My NFTs" },
     { property: "og:description", content: "All the collectibles you own, ready to manage or list." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}),

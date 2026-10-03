@@ -22,9 +22,9 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/my-activity")({
   head: () => ({ meta: [
-    { title: "Recent Activity — NexDrop" },
-    { name: "description", content: "Track your NexDrop trades, listings, bids and transfers in one place." },
-    { property: "og:title", content: "Recent Activity — NexDrop" },
+    { title: "Recent Activity" },
+    { name: "description", content: "Track your Zenkaihood trades, listings, bids and transfers in one place." },
+    { property: "og:title", content: "Recent Activity" },
     { property: "og:description", content: "Your purchases, sales, listings, bids and transfers." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
   ]}),

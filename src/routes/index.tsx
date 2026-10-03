@@ -82,9 +82,9 @@ function formatRelativeTime(timestampSec: number): string {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NexDrop — NFT Marketplace on Base Sepolia" },
-      { name: "description", content: "Discover, collect, and trade remarkable digital art and NFTs on Base Sepolia with NexDrop." },
-      { property: "og:title", content: "NexDrop NFT Marketplace" },
+      { title: "Zenkaihood NFT Marketplace" },
+      { name: "description", content: "Discover, collect, and trade remarkable digital art and NFTs on EVM Chains with Zenkaihood." },
+      { property: "og:title", content: "Zenkaihood NFT Marketplace" },
       { property: "og:description", content: "Explore trending collections, live auctions, and top digital art." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -383,7 +383,7 @@ function HomePage() {
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-semibold text-foreground">Base Sepolia</span>
+                <span className="font-semibold text-foreground">Live Now</span>
               </div>
               <span className="text-border">|</span>
               <div>
@@ -474,7 +474,7 @@ function HomePage() {
               {/* Left Hero Narrative */}
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary backdrop-blur">
-                  <Sparkles className="size-3.5" /> Spotlight Collection Drop
+                  <Sparkles className="size-3.5" /> Zenkaihood NFT Marketplace
                 </div>
 
                 <h1 className="mt-4 font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl leading-[1.08]">
@@ -485,7 +485,7 @@ function HomePage() {
                 </h1>
 
                 <p className="mt-4 max-w-lg text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  The premier decentralized NFT marketplace built on Base Sepolia. Explore verified drops, participate in live anti-sniping auctions, and trade with {platformFeePercent === "0%" ? "0%" : platformFeePercent} marketplace fees.
+                  The premier decentralized NFT marketplace built on EVM Chains. Explore verified drops, participate in live anti-sniping auctions, and trade with {platformFeePercent === "0%" ? "0%" : platformFeePercent} marketplace fees.
                 </p>
 
                 {/* Hero Search Box with Autocomplete */}
@@ -568,7 +568,7 @@ function HomePage() {
                   </Button>
                   <Button asChild size="lg" variant="outline" className="gap-2">
                     <Link to="/create">
-                      <Plus className="size-4" /> Create Collection
+                      <Plus className="size-4" /> Register Collection
                     </Link>
                   </Button>
                 </div>
@@ -601,7 +601,7 @@ function HomePage() {
                       {/* Live Badge */}
                       <span className="absolute top-3 left-3 rounded-full bg-background/80 backdrop-blur border border-border px-3 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5 shadow-sm">
                         <span className="size-2 rounded-full bg-success animate-pulse" />
-                        Featured Drop
+                        Featured Collection
                       </span>
                     </div>
 
@@ -635,7 +635,7 @@ function HomePage() {
 
                         <Button asChild size="sm" className="mb-1 gap-1.5 shrink-0">
                           <Link to="/collections/$slug" params={{ slug: currentHeroCol.id }}>
-                            View Drop <ArrowRight className="size-3.5" />
+                            View Collection <ArrowRight className="size-3.5" />
                           </Link>
                         </Button>
                       </div>
@@ -739,7 +739,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── 3. OPENSEA SIGNATURE TRENDING & TOP LEADERBOARD ──────────────── */}
+        {/* ─── 3. ZENKAIHOOD SIGNATURE TRENDING & TOP LEADERBOARD ──────────────── */}
         <section className="mx-auto max-w-[1440px] px-4 py-10 sm:px-8 sm:py-14 lg:px-14">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4 mb-6">
             {/* Toggle Tabs: Trending vs Top */}
@@ -859,7 +859,7 @@ function HomePage() {
                   <Sparkles className="size-5 text-primary" /> Notable Collections
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Explore top community registered collections on Base Sepolia
+                  Explore top community registered collections
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -994,7 +994,7 @@ function HomePage() {
                   <Palette className="size-5 text-primary" /> Browse by Category
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                  Explore registered collections curated with creator categories on Base Sepolia
+                  Explore registered collections curated with creator categories
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1060,12 +1060,12 @@ function HomePage() {
                   No Categorized Collections Registered Yet
                 </h3>
                 <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                  Be the first creator to deploy and register a collection with custom categories on NexDrop.
+                  Be the first creator to deploy and register a collection with custom categories on Zenkaihood.
                 </p>
                 <div className="mt-5 flex items-center gap-3">
                   <Button asChild size="sm" className="gap-1.5">
                     <Link to="/create">
-                      <Plus className="size-3.5" /> Create Collection
+                      <Plus className="size-3.5" /> Register Collection
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="sm">
@@ -1077,7 +1077,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ─── 8. WHY NEXDROP: TRUST & ECOSYSTEM ADVANTAGES ──────────────── */}
+        {/* ─── 8. WHY ZENKAIHOOD: TRUST & ECOSYSTEM ADVANTAGES ──────────────── */}
         <section className="border-t border-border bg-card/30 py-16 sm:py-20">
           <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-14">
             <div className="mx-auto max-w-3xl text-center">
@@ -1088,7 +1088,7 @@ function HomePage() {
                 Engineered for Fair, Safe &amp; Low-Cost Trading
               </h2>
               <p className="mt-3 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                NexDrop combines battle-tested smart contract infrastructure with modern Layer-2 scalability on Base Sepolia.
+                Zenkaihood combines battle-tested smart contract infrastructure with modern Layer-2 scalability EVM Chains.
               </p>
             </div>
 
@@ -1118,7 +1118,7 @@ function HomePage() {
                   Sub-Cent Gas on Base L2
                 </h3>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                  Built natively on Base Sepolia Ethereum L2. Execute listings, bulk cart sweeps, and instant offer executions with sub-second finality and near-zero gas costs.
+                  Built natively on Ethereum L2. Execute listings, bulk cart sweeps, and instant offer executions with sub-second finality and near-zero gas costs.
                 </p>
                 <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-blue-400">
                   <span>Sub-second Finality</span>
@@ -1162,7 +1162,7 @@ function HomePage() {
             <div className="mt-10 flex flex-wrap items-center justify-center gap-6 rounded-2xl border border-border/80 bg-background/60 p-4 text-xs font-medium text-muted-foreground backdrop-blur">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="size-4 text-emerald-500" />
-                <span>Verified Bytecode on BaseScan</span>
+                <span>Verified Bytecode</span>
               </div>
               <span className="hidden sm:inline text-border">·</span>
               <div className="flex items-center gap-2">
@@ -1189,10 +1189,10 @@ function HomePage() {
             <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-8 sm:p-12 shadow-xl">
               <div className="relative z-10 max-w-2xl">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/20 px-3 py-0.5 text-xs font-semibold text-primary">
-                  <ShieldCheck className="size-3.5" /> NexDrop Creator Studio
+                  <ShieldCheck className="size-3.5" /> Zenkaihood Creator Studio
                 </span>
                 <h3 className="mt-4 font-display text-2xl sm:text-4xl font-extrabold tracking-tight">
-                  Launch Your Collection on Base Sepolia
+                  Launch Your Collection
                 </h3>
                 <p className="mt-3 text-xs sm:text-sm text-muted-foreground leading-relaxed">
                   Join our creator ecosystem. Deploy ERC-721 or ERC-1155 smart contracts, configure custom royalty splits, and start selling with {platformFeePercent === "0%" ? "zero" : platformFeePercent} marketplace fees.
@@ -1201,7 +1201,7 @@ function HomePage() {
                 <div className="mt-6 flex flex-wrap items-center gap-3">
                   <Button asChild size="default" className="gap-2 shadow-md">
                     <Link to="/create">
-                      <Plus className="size-4" /> Create Collection
+                      <Plus className="size-4" /> Register Collection
                     </Link>
                   </Button>
                   <Button asChild size="default" variant="outline" className="gap-2">
@@ -1214,7 +1214,7 @@ function HomePage() {
 
               {/* Decorative Watermark */}
               <div className="absolute right-4 -bottom-6 select-none opacity-5 text-9xl font-extrabold text-foreground pointer-events-none font-display">
-                ZENKAI
+                ZENKAIHOOD
               </div>
             </div>
           </div>

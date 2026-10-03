@@ -92,9 +92,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/collections/$slug")({
   head: ({ params }) => ({
     meta: [
-      { title: `Collection ${params.slug.slice(0, 8)}… — NexDrop` },
-      { name: "description", content: `Browse, trade, and analyze NFTs in collection ${params.slug} on NexDrop.` },
-      { property: "og:title", content: `Collection — NexDrop` },
+      { title: `Collection ${params.slug.slice(0, 8)}… ` },
+      { name: "description", content: `Browse, trade, and analyze NFTs in collection ${params.slug} on Zenkaihood.` },
+      { property: "og:title", content: `Collection` },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

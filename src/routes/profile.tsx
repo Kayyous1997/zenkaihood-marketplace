@@ -70,9 +70,9 @@ import { txUrl } from "@/lib/basescan";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "User Profile — NexDrop" },
-      { name: "description", content: "View owned and created NFTs, active listings, auctions, bids and activity on NexDrop." },
-      { property: "og:title", content: "User Profile — NexDrop" },
+      { title: "User Profile" },
+      { name: "description", content: "View owned and created NFTs, active listings, auctions, bids and activity on Zenkaihood." },
+      { property: "og:title", content: "User Profile" },
       { property: "og:description", content: "Collector profile with owned works, listings, auctions, bids, and activity." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

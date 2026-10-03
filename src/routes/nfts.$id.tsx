@@ -39,10 +39,10 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/nfts/$id")({
   head: ({ params }) => ({
     meta: [
-      { title: `NFT ${params.id} — NexDrop` },
-      { name: "description", content: `View details, traits and listing history for NexDrop NFT ${params.id}.` },
-      { property: "og:title", content: `NFT ${params.id} — NexDrop` },
-      { property: "og:description", content: "Explore this digital collectible on NexDrop." },
+      { title: `NFT ${params.id}` },
+      { name: "description", content: `View details, traits and listing history for Zenkaihood NFT ${params.id}.` },
+      { property: "og:title", content: `NFT ${params.id}` },
+      { property: "og:description", content: "Explore this digital collectible on Zenkaihood." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

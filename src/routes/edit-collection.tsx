@@ -274,7 +274,7 @@ function EditCollectionPage() {
         </div>
 
         <PageHead
-          eyebrow="OpenSea Studio Collection Editor"
+          eyebrow="zenkai Studio Collection Editor"
           title="Edit Collection"
           description="Manage your collection's branding, display metadata, creator earnings, and smart contract settings."
         />

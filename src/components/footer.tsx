@@ -67,7 +67,7 @@ export function Footer() {
             </Link>
 
             <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-              The premier decentralized NFT marketplace and creator launchpad on Base Sepolia and Robinhood Testnet. Discover verified digital art, create smart contracts, and trade securely with {platformFeePercent === "0%" ? "zero" : platformFeePercent} marketplace fees.
+              The premier decentralized NFT marketplace and creator launchpad. Discover verified digital art, create smart contracts, and trade securely with {platformFeePercent === "0%" ? "zero" : platformFeePercent} marketplace fees.
             </p>
 
             <div className="flex items-center gap-2 pt-1 text-muted-foreground">
@@ -156,16 +156,6 @@ export function Footer() {
                   My Activity
                 </Link>
               </li>
-              <li>
-                <a
-                  href="https://sepolia.basescan.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-                >
-                  BaseScan Explorer <ExternalLink className="size-3 text-muted-foreground" />
-                </a>
-              </li>
             </ul>
           </div>
         </div>
@@ -175,7 +165,7 @@ export function Footer() {
           <p>© {new Date().getFullYear()} Zenkaihood. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1">
-              Built on <b className="text-foreground">Base Sepolia</b> &amp; <b className="text-foreground">Robinhood Chain</b>
+              Built on <b className="text-foreground">EVM Layer-2</b>
             </span>
           </div>
         </div>
