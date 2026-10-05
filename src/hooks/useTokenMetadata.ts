@@ -36,6 +36,7 @@ export function useTokenMetadata(
   contractAddress: `0x${string}` | undefined,
   tokenId: string | number | undefined,
   tokenStandard: "ERC-721" | "ERC-1155" = "ERC-721",
+  targetChainId?: number,
 ) {
   const isClient = typeof window !== "undefined";
   const tokenIdBig = safeParseBigInt(tokenId);
@@ -46,6 +47,7 @@ export function useTokenMetadata(
     abi: erc721WithTokenUri,
     functionName: "tokenURI",
     args: tokenIdBig !== undefined ? [tokenIdBig] : undefined,
+    chainId: targetChainId,
     query: { enabled: isClient && !!contractAddress && tokenIdBig !== undefined },
   });
 
@@ -54,6 +56,7 @@ export function useTokenMetadata(
     abi: [{ type: "function", name: "uri", inputs: [{ name: "id", type: "uint256" }], outputs: [{ name: "", type: "string" }], stateMutability: "view" }] as const,
     functionName: "uri",
     args: tokenIdBig !== undefined ? [tokenIdBig] : undefined,
+    chainId: targetChainId,
     query: { enabled: isClient && tokenStandard === "ERC-1155" && !!contractAddress && tokenIdBig !== undefined },
   });
   const resolvedTokenUri = tokenStandard === "ERC-1155" ? erc1155Uri : tokenUri;

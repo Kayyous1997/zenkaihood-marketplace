@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -525,6 +526,7 @@ function HomePage() {
                               key={col.id}
                               to="/collections/$slug"
                               params={{ slug: col.id }}
+                              search={{ chain: DEFAULT_CHAIN_ID }}
                               onClick={() => setSearchFocused(false)}
                               className="flex items-center justify-between gap-3 p-2 rounded-lg transition hover:bg-muted"
                             >
@@ -634,7 +636,7 @@ function HomePage() {
                         </div>
 
                         <Button asChild size="sm" className="mb-1 gap-1.5 shrink-0">
-                          <Link to="/collections/$slug" params={{ slug: currentHeroCol.id }}>
+                          <Link to="/collections/$slug" params={{ slug: currentHeroCol.id }} search={{ chain: DEFAULT_CHAIN_ID }}>
                             View Collection <ArrowRight className="size-3.5" />
                           </Link>
                         </Button>
@@ -1255,6 +1257,7 @@ function LeaderboardRow({
     <Link
       to="/collections/$slug"
       params={{ slug: col.id }}
+      search={{ chain: DEFAULT_CHAIN_ID }}
       className="grid grid-cols-[32px_1fr_90px_110px] items-center rounded-xl p-2.5 transition-colors hover:bg-card/80 border border-transparent hover:border-border"
     >
       {/* Rank */}

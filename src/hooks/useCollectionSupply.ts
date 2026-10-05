@@ -27,15 +27,18 @@ const supplyAbi = [
 
 /**
  * Reads the total token supply / minted count from an NFT contract on-chain.
+ * @param contractAddress - The NFT contract address.
+ * @param targetChainId   - Optional chain to read from. Defaults to the connected wallet's chain.
  * Returns string | null for JSON serialization and SSR safety.
  */
-export function useCollectionSupply(contractAddress?: string | null) {
-  const client = usePublicClient();
+export function useCollectionSupply(contractAddress?: string | null, targetChainId?: number) {
+  // Pass chainId so wagmi uses the matching RPC even if wallet is on a different chain.
+  const client = usePublicClient({ chainId: targetChainId });
   const address = contractAddress?.trim().toLowerCase() as `0x${string}` | undefined;
   const isValid = !!address && /^0x[0-9a-fA-F]{40}$/.test(address);
 
   return useQuery({
-    queryKey: ["collection-supply", address],
+    queryKey: ["collection-supply", address, targetChainId],
     enabled: isValid && !!client,
     staleTime: 60_000,
     queryFn: async (): Promise<string | null> => {

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
 import { useQuery } from "@tanstack/react-query";
 import {
   ShieldAlert,
@@ -637,6 +638,7 @@ function AdminPage() {
                                   <Link
                                     to="/collections/$slug"
                                     params={{ slug: col.id }}
+                                    search={{ chain: (col as any).meta?.chain_id ?? DEFAULT_CHAIN_ID }}
                                     className="hover:underline flex items-center gap-1 font-semibold truncate max-w-[180px]"
                                   >
                                     {displayName}

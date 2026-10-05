@@ -4,6 +4,8 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IpfsImg } from "@/components/ipfs-img";
 import { Verified } from "@/components/zenkai";
+import { ChainBadge, ChainIcon } from "@/components/chain-icons";
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
 import type { CollectionMeta } from "@/hooks/useCollectionMeta";
 import type { CollectionFragment } from "@/indexer/queries";
 import { formatCategoryLabel } from "@/lib/categories";
@@ -32,6 +34,7 @@ export function CollectionPreviewCard({
   const banner = meta?.banner_url || (meta as any)?.bannerURI || meta?.logo_url || (meta as any)?.logoURI || null;
   const logo = meta?.logo_url || (meta as any)?.logoURI || null;
   const categories = meta?.categories || [];
+  const chainId = col.chainId ?? meta?.chain_id ?? DEFAULT_CHAIN_ID;
 
   return (
     <div
@@ -41,6 +44,7 @@ export function CollectionPreviewCard({
       <Link
         to="/collections/$slug"
         params={{ slug: col.id }}
+        search={{ chain: chainId }}
         className="block"
       >
         <div className="relative aspect-[2.2] overflow-hidden bg-muted">
@@ -50,6 +54,9 @@ export function CollectionPreviewCard({
             <div className="size-full bg-gradient-to-br from-muted via-card to-background" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent" />
+          <div className="absolute right-2.5 top-2.5 z-10">
+            <ChainBadge chainId={chainId} size="xs" />
+          </div>
           {logo ? (
             <IpfsImg
               uri={logo}
@@ -111,12 +118,14 @@ export function CollectionPreviewRow({
 }) {
   const name = collectionDisplayName(col, meta);
   const logo = meta?.logo_url || (meta as any)?.logoURI || null;
+  const chainId = col.chainId ?? meta?.chain_id ?? DEFAULT_CHAIN_ID;
 
   return (
     <Link
       to="/collections/$slug"
       params={{ slug: col.id }}
-      className="grid items-center gap-3 border-b border-border px-3 py-2.5 last:border-0 hover:bg-muted/30 sm:grid-cols-[1fr_80px_80px_80px]"
+      search={{ chain: chainId }}
+      className="grid items-center gap-3 border-b border-border px-3 py-2.5 last:border-0 hover:bg-muted/30 sm:grid-cols-[1fr_auto_80px_80px_80px]"
     >
       <div className="flex min-w-0 items-center gap-3">
         {logo ? (
@@ -125,11 +134,14 @@ export function CollectionPreviewRow({
           <div className="grid size-10 place-content-center rounded-full bg-muted text-xs font-display">{name.slice(0, 1)}</div>
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">
+          <p className="truncate text-sm font-semibold flex items-center gap-1.5">
             {name} {col.verified && <Verified />}
           </p>
           <p className="truncate text-[11px] text-muted-foreground">{shortAddr(col.creator)}</p>
         </div>
+      </div>
+      <div>
+        <ChainBadge chainId={chainId} size="xs" short />
       </div>
       <span className="hidden text-right text-xs sm:block">{col.activeListingCount}</span>
       <span className="hidden text-right text-xs sm:block">{col.activeAuctionCount}</span>

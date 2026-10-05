@@ -1,5 +1,6 @@
 import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
 import {
   Activity,
   ArrowRight,
@@ -153,7 +154,7 @@ export function Header() {
             if (!to) return null;
             const active = path.startsWith(to.split("/").slice(0, 2).join("/"));
             return to === "/explore" ? (
-              <Link key={to} to="/explore" search={{ q: undefined }} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
+              <Link key={to} to="/explore" search={{ q: undefined, category: undefined, chain: undefined }} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
             ) : (
               <Link key={to} to={to as any} className={cn("nav-link", active && "nav-link-active")}>{label}</Link>
             );
@@ -185,7 +186,7 @@ export function Header() {
         {navItems.map(([label, to]) => {
           if (!to) return null;
           return to === "/explore" ? (
-            <Link key={to} to="/explore" search={{ q: undefined }} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
+            <Link key={to} to="/explore" search={{ q: undefined, category: undefined, chain: undefined }} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
           ) : (
             <Link key={to} to={to as any} onClick={() => setMobileOpen(false)} className="border-b border-border/60 py-3 text-sm last:border-0">{label}</Link>
           );
@@ -345,7 +346,7 @@ export function Verified({ className = "size-3.5" }: { className?: string }) {
 
 export function CollectionCard({ item, index = 0 }: { item: (typeof collections)[number]; index?: number }) {
   return (
-    <Link to="/collections/$slug" params={{ slug: item.slug }} className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
+    <Link to="/collections/$slug" params={{ slug: item.slug }} search={{ chain: DEFAULT_CHAIN_ID }} className="group flex min-w-0 items-center gap-4 rounded-md border border-border bg-surface/80 p-3 transition-all duration-300 hover:bg-accent card-hover animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
       <img src={item.art} alt={`${item.name} collection`} width={1024} height={1024} loading="lazy" className="size-20 shrink-0 rounded object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-display font-semibold">{item.name} <Verified /></h3>

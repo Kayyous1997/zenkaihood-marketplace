@@ -58,13 +58,13 @@ function FeeRow({ label, value, sub, strong }: { label: string; value: string; s
   );
 }
 
-function TxStatus({ isPending, isConfirming, isSuccess, txHash }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean; txHash?: string | undefined }) {
+function TxStatus({ isPending, isConfirming, isSuccess, txHash, chainId }: { isPending: boolean; isConfirming: boolean; isSuccess: boolean; txHash?: string | undefined; chainId?: number }) {
   if (isSuccess) return (
     <p className="rounded-md bg-success/10 p-2 text-center text-xs text-success">
       ✓ Transaction confirmed!{" "}
       {txHash && (
-        <a href={txUrl(txHash)} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2 hover:opacity-80">
-          View on BaseScan ↗
+        <a href={txUrl(txHash, chainId)} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2 hover:opacity-80">
+          View on {chainId === 46630 ? "Robinhood Explorer" : "BaseScan"} ↗
         </a>
       )}
     </p>
@@ -501,6 +501,7 @@ export interface OfferDialogProps {
   nftContract: `0x${string}`;
   tokenId: string;
   tokenStandard: "ERC-721" | "ERC-1155";
+  targetChainId?: number;
   label?: string;
   variant?: "default" | "outline" | "ghost";
   className?: string;
@@ -510,6 +511,7 @@ export function OfferDialog({
   nftContract,
   tokenId,
   tokenStandard,
+  targetChainId,
   label = "Make Offer",
   variant = "outline",
   className,
@@ -522,7 +524,7 @@ export function OfferDialog({
   const addresses = useAddresses();
   const queryClient = useQueryClient();
 
-  const { createOffer, isPending, isConfirming, isSuccess } = useOffer();
+  const { createOffer, isPending, isConfirming, isSuccess } = useOffer(targetChainId);
 
   const isErc1155 = tokenStandard === "ERC-1155";
   const parsedQty = Math.max(1, parseInt(quantityText || "1", 10) || 1);
@@ -668,7 +670,7 @@ export function OfferDialog({
           </div>
         )}
 
-        <TxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess} />
+        <TxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess} chainId={targetChainId} />
 
         <DialogFooter>
           {isSuccess ? (

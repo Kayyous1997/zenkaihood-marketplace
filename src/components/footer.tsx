@@ -128,7 +128,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link to="/explore" search={{ category: "art" }} className="transition-colors hover:text-foreground">
+                <Link to="/explore" search={{ category: "art", q: undefined, chain: undefined }} className="transition-colors hover:text-foreground">
                   Browse by Category
                 </Link>
               </li>

@@ -44,7 +44,24 @@ export const robinhoodTestnet = defineChain({
 
 export const SUPPORTED_CHAINS = [baseSepolia, robinhoodTestnet] as const;
 export const SUPPORTED_CHAIN_IDS = [baseSepolia.id, robinhoodTestnet.id] as const;
+export const DEFAULT_CHAIN_ID = baseSepolia.id;
 
 export function isSupportedChainId(chainId: number | undefined | null): boolean {
   return chainId != null && (chainId === baseSepolia.id || chainId === robinhoodTestnet.id);
 }
+
+export function getChainById(chainId: number | undefined | null) {
+  if (!chainId) return baseSepolia;
+  return SUPPORTED_CHAINS.find((c) => c.id === chainId) ?? baseSepolia;
+}
+
+export function getChainName(chainId: number | undefined | null): string {
+  if (chainId === robinhoodTestnet.id) return "Robinhood Testnet";
+  return "Base Sepolia";
+}
+
+export function getChainShortName(chainId: number | undefined | null): string {
+  if (chainId === robinhoodTestnet.id) return "Robinhood";
+  return "Base";
+}
+

@@ -129,6 +129,7 @@ function RegisterCollectionPage() {
         discord_url: discord || null,
         telegram_url: telegram || null,
         categories: selectedCategories.length > 0 ? selectedCategories : null,
+        chain_id: chainId,
       }).then(() => {
         setPendingMeta(null);
         setIsSubmitting(false);

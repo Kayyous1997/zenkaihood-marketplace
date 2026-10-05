@@ -35,7 +35,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Area,
@@ -89,7 +89,13 @@ import { formatBps, formatEth, formatEthCompact, parseEthInput } from "@/lib/tok
 import { getCategoryById } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
+import { ChainBadge } from "@/components/chain-icons";
+
 export const Route = createFileRoute("/collections/$slug")({
+  validateSearch: (search: Record<string, unknown>): { chain: number } => ({
+    chain: Number(search["chain"]) || DEFAULT_CHAIN_ID,
+  }),
   head: ({ params }) => ({
     meta: [
       { title: `Collection ${params.slug.slice(0, 8)}… ` },
@@ -101,6 +107,7 @@ export const Route = createFileRoute("/collections/$slug")({
   }),
   component: CollectionPage,
 });
+
 
 const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
 type Tab = "Items" | "Analytics" | "Offers" | "Activity" | "About";
@@ -117,6 +124,10 @@ type ViewMode = "grid" | "list";
 type ItemStatus = "Buy Now" | "On Auction" | "Not Listed";
 
 const PAGE_SIZE = 24;
+
+/** Context so sub-components can read the collection's target chain without prop drilling. */
+const CollectionChainCtx = createContext<number>(DEFAULT_CHAIN_ID);
+const useCollectionChainId = () => useContext(CollectionChainCtx);
 
 interface UnifiedItem {
   id: string;
@@ -152,6 +163,7 @@ function formatCreated(unix: string) {
 
 function CollectionPage() {
   const { slug } = Route.useParams();
+  const { chain: collectionChainId } = Route.useSearch();
   const collectionAddress = (slug ? slug.toLowerCase() : "") as `0x${string}`;
 
   const { address } = useWallet();
@@ -178,7 +190,8 @@ function CollectionPage() {
 
   const { items: cartItems, addItem, removeItem, clearCart } = useSweepCart();
   const { data: supabaseMeta } = useCollectionMeta(collectionAddress);
-  const { data: onChainSupply } = useCollectionSupply(collectionAddress);
+  const { data: onChainSupply } = useCollectionSupply(collectionAddress, collectionChainId);
+
 
   const { data: colData, isLoading: colLoading } = useQuery({
     queryKey: ["collection", collectionAddress],
@@ -710,7 +723,7 @@ function CollectionPage() {
             No collection registered at address <code className="text-xs">{collectionAddress}</code>
           </p>
           <Button asChild variant="outline">
-            <Link to="/explore" search={{ q: undefined }}>
+            <Link to="/explore" search={{ q: undefined, category: undefined, chain: undefined }}>
               Browse collections
             </Link>
           </Button>
@@ -751,7 +764,8 @@ function CollectionPage() {
   );
 
   return (
-    <Shell>
+    <CollectionChainCtx.Provider value={collectionChainId}>
+      <Shell>
       {/* ────────────────── Hero Banner & Collection Identity ────────────────── */}
       <section className="relative">
         <div className="relative h-[200px] overflow-hidden sm:h-[260px] lg:h-[320px]">
@@ -781,6 +795,7 @@ function CollectionPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
                 {col.verified && <Verified />}
+                <ChainBadge chainId={collectionChainId} size="sm" />
 
                 <div className="ml-auto flex flex-wrap items-center gap-1.5">
                   {/* Quick Offer Button */}
@@ -789,6 +804,7 @@ function CollectionPage() {
                       nftContract={collectionAddress}
                       tokenId={floorItem.tokenId}
                       tokenStandard={tokenStandard}
+                      targetChainId={collectionChainId}
                       label="Make Offer"
                       variant="outline"
                       className="h-8 rounded-full text-xs font-semibold shadow-sm"
@@ -884,7 +900,7 @@ function CollectionPage() {
                       <Link
                         key={catId}
                         to="/explore"
-                        search={{ q: undefined, category: catId }}
+                        search={{ q: undefined, category: catId, chain: undefined }}
                         className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-0.5 text-[11px] font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
                       >
                         {Icon && <Icon className="size-3 text-primary" />}
@@ -1679,6 +1695,7 @@ function CollectionPage() {
                   key={offer.id}
                   to="/nfts/$id"
                   params={{ id: `${collectionAddress}-${offer.tokenId}` }}
+                  search={{ chain: collectionChainId }}
                   className="grid grid-cols-[1fr_120px_140px_120px] items-center gap-3 border-b border-border px-4 py-3 text-sm last:border-0 hover:bg-muted/30"
                 >
                   <span className="font-semibold text-foreground">Token #{offer.tokenId}</span>
@@ -1792,7 +1809,8 @@ function CollectionPage() {
           </div>
         </div>
       )}
-    </Shell>
+      </Shell>
+    </CollectionChainCtx.Provider>
   );
 }
 
@@ -1935,7 +1953,8 @@ function ListingCard({
   onAddToCart: () => void;
   onRemoveFromCart: () => void;
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId, chainId);
   const { address } = useWallet();
   const isEth = listing.paymentToken === ETH_ADDRESS;
   const listingPriceWei = safeBigInt(listing.pricePerItem);
@@ -1951,7 +1970,7 @@ function ListingCard({
       className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl"
       style={{ animationDelay: `${(index % 24) * 0.03}s` }}
     >
-      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} className="block">
+      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} search={{ chain: chainId }} className="block">
         <div className="relative aspect-square overflow-hidden bg-muted">
           {imageUri ? (
             <IpfsImg uri={imageUri} alt={name} className="size-full object-cover transition duration-500 group-hover:scale-[1.04]" />
@@ -1976,7 +1995,7 @@ function ListingCard({
                 className="w-full bg-background/90 font-semibold backdrop-blur shadow-md"
                 asChild
               >
-                <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }}>
+                <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} search={{ chain: chainId }}>
                   Manage Listing
                 </Link>
               </Button>
@@ -2039,7 +2058,8 @@ function AuctionCard({
   lastSalePrice?: bigint | null;
   index: number;
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId, chainId);
   const { address } = useWallet();
   const endsAt = safeBigInt(auction.endTime);
   const endsInMin = Math.max(0, Math.floor((Number(endsAt) * 1000 - Date.now()) / 60000));
@@ -2056,7 +2076,7 @@ function AuctionCard({
       className="group overflow-hidden rounded-xl border border-border bg-card transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl"
       style={{ animationDelay: `${(index % 24) * 0.03}s` }}
     >
-      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} className="block">
+      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} search={{ chain: chainId }} className="block">
         <div className="relative aspect-square overflow-hidden bg-muted">
           {imageUri ? (
             <IpfsImg uri={imageUri} alt={name} className="size-full object-cover transition duration-500 group-hover:scale-[1.04]" />
@@ -2084,7 +2104,7 @@ function AuctionCard({
       <div className="px-3 pb-3">
         {isSeller ? (
           <Button asChild variant="outline" className="w-full text-xs font-semibold">
-            <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }}>
+            <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} search={{ chain: chainId }}>
               Manage Auction
             </Link>
           </Button>
@@ -2123,7 +2143,8 @@ function UnlistedCard({
   tokenStandard: "ERC-721" | "ERC-1155";
   index: number;
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId, chainId);
   const { address } = useWallet();
   const isErc1155 = tokenStandard === "ERC-1155";
   const parsedTokenId = safeBigInt(tokenId);
@@ -2157,7 +2178,7 @@ function UnlistedCard({
       className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:-translate-y-1 hover:border-border/80 hover:shadow-lg"
       style={{ animationDelay: `${(index % 24) * 0.03}s` }}
     >
-      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }} className="block">
+      <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }} search={{ chain: chainId }} className="block">
         <div className="relative aspect-square overflow-hidden bg-muted">
           {imageUri ? (
             <IpfsImg uri={imageUri} alt={name} className="size-full object-cover transition duration-500 group-hover:scale-[1.04]" />
@@ -2188,6 +2209,7 @@ function UnlistedCard({
                   nftContract={collectionAddress as `0x${string}`}
                   tokenId={tokenId}
                   tokenStandard={tokenStandard}
+                  targetChainId={chainId}
                   label="Make Offer"
                   variant="outline"
                   className="w-full bg-background/90 font-semibold backdrop-blur shadow-md"
@@ -2243,7 +2265,8 @@ function ListingTableRow({
   onAddToCart: () => void;
   onRemoveFromCart: () => void;
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, listing.tokenId, chainId);
   const { address } = useWallet();
   const isEth = listing.paymentToken === ETH_ADDRESS;
   const price = isEth ? formatEthCompact(safeBigInt(listing.pricePerItem)) : listing.pricePerItem;
@@ -2254,7 +2277,7 @@ function ListingTableRow({
   return (
     <tr className="transition hover:bg-muted/30">
       <td className="p-3">
-        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} className="flex items-center gap-3">
+        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} search={{ chain: chainId }} className="flex items-center gap-3">
           <div className="size-10 overflow-hidden rounded-lg bg-muted">
             {imageUri && <IpfsImg uri={imageUri} alt="" className="size-full object-cover" />}
           </div>
@@ -2277,7 +2300,7 @@ function ListingTableRow({
       <td className="p-3 text-right">
         {isSeller ? (
           <Button asChild size="sm" variant="outline" className="h-7 text-xs font-semibold">
-            <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }}>
+            <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${listing.tokenId}` }} search={{ chain: chainId }}>
               Manage
             </Link>
           </Button>
@@ -2306,7 +2329,8 @@ function AuctionTableRow({
   rarity?: TokenRarity;
   lastSalePrice?: bigint | null;
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, auction.tokenId, chainId);
   const { address } = useWallet();
   const reserve = safeBigInt(auction.reservePrice);
   const bid = safeBigInt(auction.highestBid);
@@ -2318,7 +2342,7 @@ function AuctionTableRow({
   return (
     <tr className="transition hover:bg-muted/30">
       <td className="p-3">
-        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} className="flex items-center gap-3">
+        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} search={{ chain: chainId }} className="flex items-center gap-3">
           <div className="size-10 overflow-hidden rounded-lg bg-muted">
             {imageUri && <IpfsImg uri={imageUri} alt="" className="size-full object-cover" />}
           </div>
@@ -2342,7 +2366,7 @@ function AuctionTableRow({
       <td className="p-3 font-mono text-muted-foreground">{isSeller ? "You" : shortAddr(auction.seller)}</td>
       <td className="p-3 text-right">
         <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-          <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }}>
+          <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${auction.tokenId}` }} search={{ chain: chainId }}>
             {isSeller ? "Manage" : "Bid"}
           </Link>
         </Button>
@@ -2368,7 +2392,8 @@ function UnlistedTableRow({
   lastSalePrice?: bigint | null;
   tokenStandard: "ERC-721" | "ERC-1155";
 }) {
-  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId);
+  const chainId = useCollectionChainId();
+  const { imageUri, name } = useTokenMetadata(collectionAddress as `0x${string}`, tokenId, chainId);
   const { address } = useWallet();
   const isErc1155 = tokenStandard === "ERC-1155";
   const parsedTokenId = safeBigInt(tokenId);
@@ -2400,7 +2425,7 @@ function UnlistedTableRow({
   return (
     <tr className="transition hover:bg-muted/30">
       <td className="p-3">
-        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }} className="flex items-center gap-3">
+        <Link to="/nfts/$id" params={{ id: `${collectionAddress}-${tokenId}` }} search={{ chain: chainId }} className="flex items-center gap-3">
           <div className="size-10 overflow-hidden rounded-lg bg-muted">
             {imageUri && <IpfsImg uri={imageUri} alt="" className="size-full object-cover" />}
           </div>
@@ -2443,6 +2468,7 @@ function UnlistedTableRow({
             nftContract={collectionAddress as `0x${string}`}
             tokenId={tokenId}
             tokenStandard={tokenStandard}
+            targetChainId={chainId}
             label="Offer"
             variant="outline"
             className="h-7 text-xs font-semibold"

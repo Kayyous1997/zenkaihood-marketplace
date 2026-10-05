@@ -163,6 +163,7 @@ export interface CollectionFragment {
   auctionCount: number;
   activeAuctionCount: number;
   registeredAt: string;
+  chainId?: number;
 }
 
 export interface CollectionsResult {

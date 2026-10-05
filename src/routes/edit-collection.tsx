@@ -205,6 +205,7 @@ function EditCollectionPage() {
         discord_url: discordUrl.trim() || null,
         telegram_url: telegramUrl.trim() || null,
         categories: selectedCategories.length > 0 ? selectedCategories : null,
+        chain_id: chainId,
       });
 
       setLogoFile(null);
@@ -266,7 +267,7 @@ function EditCollectionPage() {
           </Button>
           {isContractValid && (
             <Button asChild variant="outline" size="sm" className="gap-2 text-xs">
-              <Link to="/collections/$slug" params={{ slug: contract }}>
+              <Link to="/collections/$slug" params={{ slug: contract }} search={{ chain: chainId }}>
                 <ExternalLink className="size-3.5" /> View Public Page
               </Link>
             </Button>

@@ -36,7 +36,13 @@ import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 import { formatEthCompact, formatBps } from "@/lib/token-format";
 import { cn } from "@/lib/utils";
 
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
+import { ChainBadge } from "@/components/chain-icons";
+
 export const Route = createFileRoute("/nfts/$id")({
+  validateSearch: (search: Record<string, unknown>): { chain: number } => ({
+    chain: Number(search["chain"]) || DEFAULT_CHAIN_ID,
+  }),
   head: ({ params }) => ({
     meta: [
       { title: `NFT ${params.id}` },
@@ -54,6 +60,7 @@ const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function NftDetailPage() {
   const { id } = Route.useParams();
+  const { chain: collectionChainId } = Route.useSearch();
   const { address } = useWallet();
   const [liked, setLiked] = useState(false);
   const [collectionMetadata, setCollectionMetadata] = useState<NftMetadata | null>(null);
@@ -168,7 +175,7 @@ function NftDetailPage() {
     }
   }
 
-  const { acceptOffer } = useOffer();
+  const { acceptOffer } = useOffer(collectionChainId);
   const { approveAll } = useListing();
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
 
@@ -228,6 +235,7 @@ function NftDetailPage() {
   const { metadata: onchainMetadata } = useTokenMetadata(
     collectionAddress as `0x${string}`,
     tokenId,
+    collectionChainId,
   );
 
   useEffect(() => {
@@ -275,7 +283,7 @@ function NftDetailPage() {
     <Shell>
       <main className="page-section animate-fade-in-up">
         <Button asChild variant="ghost" className="mb-4 -ml-2 gap-2 text-xs text-muted-foreground hover:text-foreground">
-          <Link to="/collections/$slug" params={{ slug: collectionAddress }}>
+          <Link to="/collections/$slug" params={{ slug: collectionAddress }} search={{ chain: collectionChainId }}>
             <ArrowLeft className="size-4" /> Back to collection
           </Link>
         </Button>
@@ -300,10 +308,13 @@ function NftDetailPage() {
           {/* Right panel */}
           <div className="space-y-5">
             <div>
-              <p className="text-xs text-muted-foreground">
-                ◉ {collectionAddress.slice(0, 8)}…{collectionAddress.slice(-6)}{" "}
-                {token?.collection.verified && <Verified />}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  ◉ {collectionAddress.slice(0, 8)}…{collectionAddress.slice(-6)}{" "}
+                  {token?.collection.verified && <Verified />}
+                </p>
+                <ChainBadge chainId={collectionChainId} size="xs" />
+              </div>
               <h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">
                 {metadata?.name ?? `Token #${tokenId}`}
               </h1>
@@ -344,6 +355,7 @@ function NftDetailPage() {
                         nftContract={collectionAddress as `0x${string}`}
                         tokenId={tokenId}
                         tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        targetChainId={collectionChainId}
                       />
                     )}
                     {isOwner && (
@@ -512,6 +524,7 @@ function NftDetailPage() {
                         nftContract={collectionAddress as `0x${string}`}
                         tokenId={tokenId}
                         tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        targetChainId={collectionChainId}
                       />
                     )}
                     <Button
@@ -549,6 +562,7 @@ function NftDetailPage() {
                         nftContract={collectionAddress as `0x${string}`}
                         tokenId={tokenId}
                         tokenStandard={token?.collection.tokenStandard === "ERC1155" ? "ERC-1155" : "ERC-721"}
+                        targetChainId={collectionChainId}
                       />
                     )}
                     {isOwner && (

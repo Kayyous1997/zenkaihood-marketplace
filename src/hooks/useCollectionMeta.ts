@@ -13,6 +13,7 @@ export interface CollectionMeta {
   discord_url: string | null;
   telegram_url: string | null;
   categories?: string[] | null;
+  chain_id?: number | null;
 }
 
 /**

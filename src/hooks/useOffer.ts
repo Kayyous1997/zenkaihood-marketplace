@@ -3,23 +3,29 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useSignTypedData,
+  useChainId,
 } from "wagmi";
 import { toast } from "sonner";
 import { marketplaceAbi } from "@/contracts/marketplaceAbi";
 import { erc20Abi } from "@/contracts/erc20Abi";
-import { useAddresses, useAddresses as useAddrs } from "@/lib/deployments";
+import { getAddresses } from "@/contracts/addresses";
 import { parseContractError } from "@/lib/contract-errors";
-import { CHAIN_ID } from "@/contracts/addresses";
+import { baseSepolia, DEFAULT_CHAIN_ID } from "@/lib/chains";
 
-/** EIP-712 domain for the Marketplace contract. */
-const SIGNED_OFFER_DOMAIN = {
-  name: "Marketplace",
-  version: "1",
-  chainId: CHAIN_ID,
-} as const;
+/**
+ * Returns the EIP-712 domain for the Marketplace contract on a given chain.
+ */
+export function getSignedOfferDomain(chainId: number, marketplaceAddress: `0x${string}`) {
+  return {
+    name: "Marketplace",
+    version: "1",
+    chainId,
+    verifyingContract: marketplaceAddress,
+  } as const;
+}
 
 /** EIP-712 types for SignedOffer. Must match SIGNED_OFFER_TYPEHASH in Marketplace.sol. */
-const SIGNED_OFFER_TYPES = {
+export const SIGNED_OFFER_TYPES = {
   SignedOffer: [
     { name: "offerer", type: "address" },
     { name: "nftContract", type: "address" },
@@ -47,13 +53,17 @@ export interface SignedOfferMessage {
  * Read the current EIP-712 nonce for an offerer address.
  * Must be included in signOffer() to prevent replay.
  */
-export function useOfferNonce(offerer: `0x${string}` | undefined) {
-  const addrs = useAddresses();
+export function useOfferNonce(offerer: `0x${string}` | undefined, targetChainId?: number) {
+  const currentChainId = useChainId();
+  const activeChainId = targetChainId ?? currentChainId ?? DEFAULT_CHAIN_ID;
+  const addrs = getAddresses(activeChainId);
+
   return useReadContract({
     address: addrs?.marketplace,
     abi: marketplaceAbi,
     functionName: "offerNonces",
     args: offerer ? [offerer] : undefined,
+    chainId: activeChainId,
     query: { enabled: !!addrs && !!offerer },
   });
 }
@@ -79,8 +89,10 @@ export function useOfferNonce(offerer: `0x${string}` | undefined) {
  *  1. Ensure marketplace is approved (setApprovalForAll)
  *  2. acceptOffer(offerId)
  */
-export function useOffer() {
-  const addrs = useAddrs();
+export function useOffer(targetChainId?: number) {
+  const currentChainId = useChainId();
+  const activeChainId = targetChainId ?? currentChainId ?? DEFAULT_CHAIN_ID;
+  const addrs = getAddresses(activeChainId);
   const { writeContractAsync, data: hash, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const { signTypedDataAsync } = useSignTypedData();
@@ -228,17 +240,19 @@ export function useOffer() {
    * The resulting signature is passed to executeSignedOffer by the NFT owner.
    *
    * @param message  SignedOfferMessage — must include current nonce from useOfferNonce()
+   * @param signChainId Optional chainId override for signing
    * @returns        Hex signature string
    */
-  async function signOffer(message: SignedOfferMessage): Promise<`0x${string}`> {
-    if (!addrs) throw new Error("Unsupported chain.");
+  async function signOffer(message: SignedOfferMessage, signChainId?: number): Promise<`0x${string}`> {
+    const offerChain = signChainId ?? activeChainId;
+    const targetAddrs = getAddresses(offerChain);
+    if (!targetAddrs) throw new Error("Unsupported chain.");
+
     try {
       toast.loading("Waiting for signature…", { id: "sign-offer" });
+      const domain = getSignedOfferDomain(offerChain, targetAddrs.marketplace);
       const sig = await signTypedDataAsync({
-        domain: {
-          ...SIGNED_OFFER_DOMAIN,
-          verifyingContract: addrs.marketplace,
-        },
+        domain,
         types: SIGNED_OFFER_TYPES,
         primaryType: "SignedOffer",
         message,

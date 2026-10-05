@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, List, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { Globe, LayoutGrid, List, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -13,15 +13,18 @@ import { gqlClient } from "@/indexer/client";
 import { GET_COLLECTIONS, GET_VERIFIED_COLLECTIONS, type CollectionsResult } from "@/indexer/queries";
 import { SLOW_REFETCH_MS } from "@/indexer/events";
 import { cn } from "@/lib/utils";
-
+import { BaseIcon, RobinhoodIcon } from "@/components/chain-icons";
+import { baseSepolia, DEFAULT_CHAIN_ID, robinhoodTestnet, SUPPORTED_CHAINS } from "@/lib/chains";
 import { COLLECTION_CATEGORIES, getCategoryById } from "@/lib/categories";
 
 type SortKey = "Trending" | "Newest" | "Most listed";
+type ChainFilter = "all" | "base" | "robinhood" | number;
 
 export const Route = createFileRoute("/explore")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search["q"] === "string" ? search["q"] : undefined,
     category: typeof search["category"] === "string" ? search["category"] : undefined,
+    chain: typeof search["chain"] === "string" || typeof search["chain"] === "number" ? String(search["chain"]) : undefined,
   }),
   head: () => ({ meta: [
     { title: "Explore Collections — NexDrop" },
@@ -37,9 +40,15 @@ const PAGE_SIZE = 12;
 const CHIPS = ["All", "Trending", "New", "Top"] as const;
 
 function ExploreBrowsePage() {
-  const { q: qFromUrl, category: categoryFromUrl } = Route.useSearch();
+  const { q: qFromUrl, category: categoryFromUrl, chain: chainFromUrl } = Route.useSearch();
   const [query, setQuery] = useState(qFromUrl ?? "");
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(categoryFromUrl);
+  const [selectedChain, setSelectedChain] = useState<ChainFilter>(() => {
+    if (!chainFromUrl || chainFromUrl === "all") return "all";
+    if (chainFromUrl === "base" || chainFromUrl === String(baseSepolia.id)) return "base";
+    if (chainFromUrl === "robinhood" || chainFromUrl === String(robinhoodTestnet.id)) return "robinhood";
+    return "all";
+  });
   const [chip, setChip] = useState<(typeof CHIPS)[number]>("All");
   const [sort, setSort] = useState<SortKey>("Trending");
   const [onlyVerified, setOnlyVerified] = useState(false);
@@ -64,6 +73,19 @@ function ExploreBrowsePage() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     let rows = collections.filter((col) => {
+      const colChainId = col.chainId ?? metaMap?.[col.id]?.chain_id ?? DEFAULT_CHAIN_ID;
+      
+      // Filter by Chain
+      if (selectedChain === "base" && colChainId !== baseSepolia.id) {
+        return false;
+      }
+      if (selectedChain === "robinhood" && colChainId !== robinhoodTestnet.id) {
+        return false;
+      }
+      if (typeof selectedChain === "number" && colChainId !== selectedChain) {
+        return false;
+      }
+
       if (q) {
         const name = collectionDisplayName(col, metaMap?.[col.id]).toLowerCase();
         const matchesQuery = name.includes(q) || col.id.toLowerCase().includes(q) || col.creator.toLowerCase().includes(q);
@@ -87,7 +109,7 @@ function ExploreBrowsePage() {
       rows = [...rows].sort((a, b) => b.listingCount - a.listingCount);
     }
     return rows;
-  }, [collections, metaMap, query, selectedCategory, chip, sort]);
+  }, [collections, metaMap, query, selectedCategory, selectedChain, chip, sort]);
 
   return (
     <Shell>
@@ -96,7 +118,7 @@ function ExploreBrowsePage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Explore</p>
           <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">Collections</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Discover collections on NexDrop — search, filter, and open any contract to buy, bid, or make an offer.
+            Discover collections across Base Sepolia and Robinhood Testnet — search, filter, and trade with verified royalty security.
           </p>
         </div>
       </section>
@@ -161,16 +183,68 @@ function ExploreBrowsePage() {
                 <button
                   type="button"
                   className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setOnlyVerified(false); setChip("All"); setQuery(""); setSelectedCategory(undefined); }}
+                  onClick={() => { setOnlyVerified(false); setChip("All"); setQuery(""); setSelectedCategory(undefined); setSelectedChain("all"); }}
                 >
-                  Clear
+                  Clear all
                 </button>
               </div>
-              <p className="mb-2 text-xs font-semibold">Chain</p>
-              <p className="mb-4 text-xs text-muted-foreground">Base Sepolia</p>
+
+              {/* Network / Chain Filter */}
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold">Network</p>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedChain("all"); setPage(0); }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
+                      selectedChain === "all"
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Globe className="size-3.5" />
+                      <span>All Networks</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedChain("base"); setPage(0); }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
+                      selectedChain === "base"
+                        ? "bg-blue-600 text-white font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <BaseIcon className="size-3.5" />
+                      <span>Base Sepolia</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedChain("robinhood"); setPage(0); }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
+                      selectedChain === "robinhood"
+                        ? "bg-emerald-600 text-white font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <RobinhoodIcon className="size-3.5" />
+                      <span>Robinhood Testnet</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
               
               <div className="mb-4 border-t border-border pt-3">
-                <label className="flex items-center justify-between text-xs">
+                <label className="flex items-center justify-between text-xs cursor-pointer">
                   Verified only
                   <Checkbox checked={onlyVerified} onCheckedChange={(v) => { setOnlyVerified(Boolean(v)); setPage(0); }} />
                 </label>
@@ -235,8 +309,8 @@ function ExploreBrowsePage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="hidden grid-cols-[1fr_80px_80px_80px] gap-3 border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
-                  <span>Collection</span><span className="text-right">Listed</span><span className="text-right">Auctions</span><span className="text-right">Offers</span>
+                <div className="hidden grid-cols-[1fr_auto_80px_80px_80px] gap-3 border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
+                  <span>Collection</span><span>Network</span><span className="text-right">Listed</span><span className="text-right">Auctions</span><span className="text-right">Offers</span>
                 </div>
                 {visible.map((col) => (
                   <CollectionPreviewRow key={col.id} col={col} meta={metaMap?.[col.id]} />
